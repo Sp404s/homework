@@ -2,5 +2,8 @@ server/private/
 server/test-private/
 server/test-fixture/
 .env
+.env.*
+!.env.example
+.vercel/
 *.log
 desktop.ini

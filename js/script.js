@@ -14,7 +14,7 @@ const sections = {
   },
   schedule: {
     title: 'Расписание',
-    description: 'Неделя определяется автоматически. При необходимости уточните её чётность переключателем ниже — даты заданий обновятся и в боте.',
+    description: 'Неделя определяется автоматически. Переключатель ниже позволяет локально уточнить чётность на этом устройстве.',
   },
 };
 
@@ -30,8 +30,16 @@ function calendarDay(date) {
 function mondayDay(date) {
   return StudentCalendar.mondayDay(date);
 }
-// Подтверждённая настройка; при подключении синхронизируется с сервером.
-let weekAnchor = { ...StudentCalendar.defaultAnchor };
+function readWeekOverride() {
+  try {
+    const value = JSON.parse(localStorage.getItem('student-week-override') || 'null');
+    return StudentCalendar.validAnchor(value) ? value : null;
+  } catch { return null; }
+}
+const isLocalServer = ['127.0.0.1', 'localhost'].includes(location.hostname);
+let localWeekOverride = readWeekOverride();
+// Сервер задаёт общую неделю, а публичный переключатель хранит личное уточнение только на устройстве посетителя.
+let weekAnchor = localWeekOverride || { ...StudentCalendar.defaultAnchor };
 let settingsKey = '';
 let weekSaving = false;
 function weekFor(date) {
@@ -99,6 +107,11 @@ function nextLessonDate(subject, now = new Date()) {
 
 async function persistWeek(anchor) {
   if (location.protocol === 'file:') throw new Error('Откройте сайт через сервер');
+  if (!isLocalServer) {
+    localWeekOverride = anchor;
+    localStorage.setItem('student-week-override', JSON.stringify(anchor));
+    return;
+  }
   const response = await fetch('/api/week', { method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Settings-Key': settingsKey },
     body: JSON.stringify(anchor), signal: AbortSignal.timeout(8000) });
@@ -393,15 +406,15 @@ async function syncHomework() {
     if (!response.ok) throw new Error('API unavailable');
     const data = await response.json();
     if (weekSaving) return;
-    settingsKey = data.settingsKey || '';
+    settingsKey = data.settingsKey || settingsKey;
     const receivedChanges = Array.isArray(data.scheduleChanges) ? data.scheduleChanges : [];
     const changesChanged = JSON.stringify(scheduleChanges) !== JSON.stringify(receivedChanges);
     scheduleChanges = receivedChanges;
     let anchorChanged = false;
     if (StudentCalendar.validAnchor(data.weekAnchor)) {
-      anchorChanged = JSON.stringify(weekAnchor) !== JSON.stringify(data.weekAnchor);
-      weekAnchor = data.weekAnchor;
-      try { localStorage.setItem('student-week-anchor', JSON.stringify(weekAnchor)); } catch { /* Только память. */ }
+      const receivedAnchor = localWeekOverride || data.weekAnchor;
+      anchorChanged = JSON.stringify(weekAnchor) !== JSON.stringify(receivedAnchor);
+      weekAnchor = receivedAnchor;
       if (anchorChanged || changesChanged) renderSchedule();
     }
     const knownSubjects = new Set(Object.values(schedule).flatMap((days) => days.flatMap((day) => day.lessons.map((item) => item.subject))));
