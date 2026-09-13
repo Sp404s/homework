@@ -1,0 +1,6 @@
+server/private/
+server/test-private/
+server/test-fixture/
+.env
+*.log
+desktop.ini
