@@ -10,8 +10,8 @@ export async function GET() {
       tasks: state.tasks,
       scheduleChanges: state.scheduleChanges,
       weekAnchor: state.weekAnchor,
-      botConnected: Boolean(state.webhookActive && state.owner),
-      botStatus: !state.webhookActive ? 'webhook-not-configured' : state.owner ? 'connected' : 'awaiting-owner',
+      botConnected: Boolean(state.webhookActive),
+      botStatus: state.webhookActive ? 'connected' : 'webhook-not-configured',
       today: calendar.today(),
     });
   } catch {

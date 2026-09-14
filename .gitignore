@@ -7,3 +7,5 @@ server/test-fixture/
 .vercel/
 *.log
 desktop.ini
+Prepare-Vercel-Secrets.ps1
+Test-Telegram-Token.ps1

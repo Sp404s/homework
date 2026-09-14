@@ -55,12 +55,19 @@ const badWebhook = await webhook(new Request('https://homework.example.test/api/
 }));
 assert.equal(badWebhook.status, 403);
 
-const ownerUpdate = { update_id: 1, message: { message_id: 1, from: { id: 42, is_bot: false }, chat: { id: 42, type: 'private' }, text: `/start ${process.env.BOT_PAIRING_CODE}` } };
-const pairResponse = await webhook(new Request('https://homework.example.test/api/telegram', {
-  method: 'POST', body: JSON.stringify(ownerUpdate), headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': process.env.TELEGRAM_WEBHOOK_SECRET },
+const publicUpdate = { update_id: 1, message: { message_id: 1, from: { id: 42, is_bot: false }, chat: { id: 42, type: 'private' }, text: '/start' } };
+const accessResponse = await webhook(new Request('https://homework.example.test/api/telegram', {
+  method: 'POST', body: JSON.stringify(publicUpdate), headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': process.env.TELEGRAM_WEBHOOK_SECRET },
 }));
-assert.equal(pairResponse.status, 200);
+assert.equal(accessResponse.status, 200);
 assert.ok(telegramCalls.some(call => call.method === 'sendMessage' && call.body.chat_id === 42));
+
+const secondUserUpdate = { update_id: 2, message: { message_id: 2, from: { id: 99, is_bot: false }, chat: { id: 99, type: 'private' }, text: '📅 Изменить расписание' } };
+const secondUserResponse = await webhook(new Request('https://homework.example.test/api/telegram', {
+  method: 'POST', body: JSON.stringify(secondUserUpdate), headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': process.env.TELEGRAM_WEBHOOK_SECRET },
+}));
+assert.equal(secondUserResponse.status, 200);
+assert.ok(telegramCalls.some(call => call.method === 'sendMessage' && call.body.chat_id === 99));
 
 const apiResponse = await homework();
 assert.equal(apiResponse.status, 200);
@@ -73,14 +80,14 @@ assert.equal(apiData.tasks.length, 5);
 const healthResponse = await health();
 const healthData = await healthResponse.json();
 assert.equal(healthData.ok, true);
-assert.equal(healthData.checks.owner, true);
+assert.equal(healthData.checks.webhook, true);
 
 const callsBeforeDuplicate = telegramCalls.length;
 const duplicate = await webhook(new Request('https://homework.example.test/api/telegram', {
-  method: 'POST', body: JSON.stringify(ownerUpdate), headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': process.env.TELEGRAM_WEBHOOK_SECRET },
+  method: 'POST', body: JSON.stringify(publicUpdate), headers: { 'Content-Type': 'application/json', 'X-Telegram-Bot-Api-Secret-Token': process.env.TELEGRAM_WEBHOOK_SECRET },
 }));
 assert.equal(duplicate.status, 200);
 assert.equal(telegramCalls.length, callsBeforeDuplicate);
 
 globalThis.fetch = realFetch;
-console.log('PASS: Vercel API, Redis persistence, secret webhook, owner pairing and duplicate protection');
+console.log('PASS: Vercel API, Redis persistence, secret webhook, public multi-user access and duplicate protection');

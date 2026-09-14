@@ -23,19 +23,7 @@ export async function POST(request) {
     const telegram = createTelegram();
     const bot = createController({ state, save: async () => {}, telegram });
 
-    if (!state.owner) {
-      const message = update.message;
-      const from = message?.from;
-      const candidate = message?.text?.match(/^\/start\s+([A-Za-z0-9_-]+)$/)?.[1] || '';
-      const pairingCode = process.env.BOT_PAIRING_CODE || '';
-      if (message?.chat?.type === 'private' && from && !from.is_bot && sameSecret(candidate, pairingCode)) {
-        state.owner = from.id;
-        state.pending = null;
-        await bot.menu(message.chat.id);
-      }
-    } else {
-      await bot.handle(update);
-    }
+    await bot.handle(update);
 
     state.lastUpdateId = update.update_id;
     state.webhookActive = true;

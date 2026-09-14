@@ -2,23 +2,29 @@ import assert from 'node:assert/strict';
 import { createController, keyboard } from './bot.mjs';
 import cal from '../js/calendar.js';
 
-const state = { owner: 42, tasks: [{ subject: 'Английский язык', text: 'Старое задание' }], weekAnchor: { ...cal.defaultAnchor }, scheduleChanges: [], pending: null };
+const state = { owner: null, tasks: [{ subject: 'Английский язык', text: 'Старое задание' }], weekAnchor: { ...cal.defaultAnchor }, scheduleChanges: [], pending: null, pendingByUser: {} };
 const sent = []; let saved;
 const bot = createController({ state, save: async () => { saved = JSON.parse(JSON.stringify(state)); }, now: () => new Date('2026-09-13T12:00:00Z'),
   telegram: async (method, body) => { sent.push({ method, ...body }); return {}; } });
 const msg = (text, id = 42) => bot.handle({ message: { from: { id }, chat: { id, type: 'private' }, text } });
-const click = (action, value = '') => bot.handle({ callback_query: { id: 'cb', from: { id: 42 }, message: { message_id: 9, chat: { id: 42, type: 'private' } }, data: `w:${state.pending.nonce}:${action}:${value}` } });
+const pending = (id = 42) => state.pendingByUser[String(id)];
+const click = (action, value = '', id = 42) => bot.handle({ callback_query: { id: 'cb', from: { id }, message: { message_id: 9, chat: { id, type: 'private' } }, data: `w:${pending(id).nonce}:${action}:${value}` } });
 assert.equal(keyboard.keyboard.length, 3);
-await msg('📅 Изменить расписание', 99); assert.equal(state.pending, null);
+await msg('📅 Изменить расписание', 99); assert.equal(pending(99).stage, 'source');
+await msg('✏️ Изменить домашнее задание'); assert.equal(pending().stage, 'subject');
+assert.equal(pending(99).stage, 'source');
+await msg('/cancel'); assert.equal(pending(), undefined);
+assert.equal(pending(99).stage, 'source');
+await msg('/cancel', 99); assert.equal(pending(99), undefined);
 await msg('📅 Изменить расписание');
-assert.equal(state.pending.stage, 'source');
-await click('date', '2026-02-30'); assert.equal(state.pending.stage, 'source');
+assert.equal(pending().stage, 'source');
+await click('date', '2026-02-30'); assert.equal(pending().stage, 'source');
 await click('date', '2026-09-15');
 await click('lesson', '1'); // Английский, вторник нечётной недели.
 await click('move'); await click('date', '2026-09-16');
 await click('hour', '13'); await click('minute', '15');
 await click('hour', '12'); await click('minute', '00'); // конец раньше начала не принимается
-assert.equal(state.pending.stage, 'hour');
+assert.equal(pending().stage, 'hour');
 await click('hour', '14'); await click('minute', '55');
 assert.equal(state.scheduleChanges.length, 0); // подтверждение обязательно
 await click('save');
@@ -28,7 +34,7 @@ assert.equal(cal.lessonsOn('2026-09-16', state.weekAnchor, state.scheduleChanges
 assert.equal(cal.nextDate('Английский язык', state.weekAnchor, '2026-09-13', state.scheduleChanges), '2026-09-16');
 await msg('✏️ Изменить домашнее задание'); await click('subject', '0');
 await msg('Текст <статьи> & пересказ'); await click('date', '2026-09-18');
-assert.equal(state.pending.stage, 'confirm');
+assert.equal(pending().stage, 'confirm');
 await click('save');
 assert.equal(state.tasks[0].due, '2026-09-18'); assert.equal(state.tasks[0].dueTime, undefined);
 assert.equal(cal.taskDate(state.tasks[0], state.weekAnchor, state.scheduleChanges, new Date('2026-09-20T12:00:00Z')), '2026-09-18');
@@ -49,4 +55,4 @@ assert.equal(cal.nextDate('История и методология науки',
 for (const packet of sent) {
   for (const row of packet.reply_markup?.inline_keyboard || []) for (const button of row) assert.ok(Buffer.byteLength(button.callback_data) <= 64);
 }
-console.log('PASS: 3 buttons, permissions, calendar/time validation, move/cancel/restore/add, explicit and automatic deadlines, single formatted list, callback sizes');
+console.log('PASS: 3 buttons, public multi-user access, isolated dialogs, calendar/time validation, move/cancel/restore/add, deadlines, list, callback sizes');

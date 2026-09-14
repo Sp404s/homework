@@ -9,8 +9,7 @@ export async function POST(request) {
 
   const baseUrl = validPublicUrl(process.env.PUBLIC_BASE_URL);
   const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
-  const pairingCode = process.env.BOT_PAIRING_CODE || '';
-  if (!baseUrl || !validWebhookSecret(webhookSecret) || !/^[A-Za-z0-9_-]{16,64}$/.test(pairingCode) || !telegramConfigured()) {
+  if (!baseUrl || !validWebhookSecret(webhookSecret) || !telegramConfigured()) {
     return json({ error: 'service_not_configured' }, 503);
   }
 
@@ -33,7 +32,7 @@ export async function POST(request) {
       drop_pending_updates: false,
     });
     const state = await loadState();
-    if (!state.owner && body.snapshot) {
+    if (!state.webhookActive && body.snapshot) {
       const snapshot = validatePublicSnapshot(body.snapshot);
       state.tasks = snapshot.tasks;
       state.weekAnchor = snapshot.weekAnchor;
@@ -42,7 +41,7 @@ export async function POST(request) {
     state.webhookActive = true;
     state.botUsername = me.username;
     await saveState(state);
-    return json({ ok: true, bot: `@${me.username}`, webhook: `${baseUrl}/api/telegram`, next: state.owner ? 'ready' : 'pair_owner' });
+    return json({ ok: true, bot: `@${me.username}`, webhook: `${baseUrl}/api/telegram`, next: 'ready' });
   } catch {
     return json({ error: 'setup_failed' }, 502);
   }

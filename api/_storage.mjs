@@ -39,6 +39,19 @@ function validChange(change) {
     typeof change.cancelled === 'boolean';
 }
 
+function validPendingByUser(value) {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid_pending_users');
+  const entries = Object.entries(value);
+  if (entries.length > 500 || JSON.stringify(value).length > 200000) throw new Error('invalid_pending_users');
+  for (const [userId, pending] of entries) {
+    if (!/^[1-9]\d{0,18}$/.test(userId) || !pending || typeof pending !== 'object' || Array.isArray(pending) || JSON.stringify(pending).length > 50000) {
+      throw new Error('invalid_pending_users');
+    }
+  }
+  return value;
+}
+
 export function freshState() {
   return {
     owner: null,
@@ -46,6 +59,7 @@ export function freshState() {
     weekAnchor: { ...calendar.defaultAnchor },
     scheduleChanges: [],
     pending: null,
+    pendingByUser: {},
     lastUpdateId: -1,
     webhookActive: false,
   };
@@ -63,6 +77,7 @@ export function validateState(input) {
     weekAnchor: calendar.validAnchor(input.weekAnchor) ? input.weekAnchor : { ...calendar.defaultAnchor },
     scheduleChanges: input.scheduleChanges,
     pending: input.pending || null,
+    pendingByUser: validPendingByUser(input.pendingByUser),
     lastUpdateId: Number.isSafeInteger(input.lastUpdateId) ? input.lastUpdateId : -1,
     webhookActive: input.webhookActive === true,
     ...(typeof input.botUsername === 'string' ? { botUsername: input.botUsername.slice(0, 100) } : {}),

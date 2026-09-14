@@ -6,7 +6,7 @@ if (['127.0.0.1', 'localhost'].includes(location.hostname) && location.port === 
 const sections = {
   homework: {
     title: 'Домашние задания',
-    description: 'Задания и сроки из Telegram. Дату можно выбрать вручную или рассчитывать по расписанию.',
+    description: '',
   },
   map: {
     title: 'Карта',
@@ -99,7 +99,6 @@ let homework = [
 ];
 const homeworkPanel = element('div', '', 'homework-panel');
 document.querySelector('#content').append(homeworkPanel);
-let syncMessage = 'Локальная версия. Для связи с Telegram откройте сайт через Start-bot.cmd.';
 
 function nextLessonDate(subject, now = new Date()) {
   return StudentCalendar.nextDate(subject, weekAnchor, now, scheduleChanges);
@@ -144,7 +143,6 @@ function renderHomework() {
   homeworkPanel.append(element('p', `Сегодня ${today.toLocaleDateString('ru-RU', {
     day: 'numeric', month: 'long', year: 'numeric',
   })}`, 'today-label'));
-  homeworkPanel.append(element('p', syncMessage, 'week-range'));
   if (location.protocol === 'file:') {
     const link = element('a', 'Открыть сайт с актуальными заданиями');
     link.href = 'http://127.0.0.1:3210';
@@ -375,6 +373,7 @@ async function switchSection(button) {
   activeSection = key;
   title.textContent = section.title;
   description.textContent = section.description;
+  description.hidden = !section.description;
   schedulePanel.hidden = key !== 'schedule';
   homeworkPanel.hidden = key !== 'homework';
   buttons.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
@@ -423,16 +422,12 @@ async function syncHomework() {
     if (!Array.isArray(data.tasks) || data.tasks.length > 50 || !data.tasks.every((task) =>
       task && knownSubjects.has(task.subject) && typeof task.text === 'string' && task.text.length <= 4000 &&
       (task.next === undefined || (typeof task.next === 'string' && task.next.length <= 4000)))) throw new Error('Invalid data');
-    const message = data.botConnected ? 'Задания синхронизированы с сервером.' : 'Задания загружены. Бот пока не подключён к Telegram.';
-    if (anchorChanged || changesChanged || JSON.stringify(homework) !== JSON.stringify(data.tasks) || syncMessage !== message) {
+    if (anchorChanged || changesChanged || JSON.stringify(homework) !== JSON.stringify(data.tasks)) {
       homework = data.tasks;
-      syncMessage = message;
       renderHomework();
     }
-  } catch {
-    const message = 'Сервер недоступен. Показана последняя загруженная версия заданий.';
-    if (syncMessage !== message) { syncMessage = message; renderHomework(); }
-  } finally { syncingHomework = false; }
+  } catch { /* Оставляем последнюю загруженную версию без служебной надписи. */ }
+  finally { syncingHomework = false; }
 }
 syncHomework();
 setInterval(syncHomework, 5000);

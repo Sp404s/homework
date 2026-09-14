@@ -1,26 +1,42 @@
+param(
+  [string]$BaseUrl = '',
+  [switch]$SkipSnapshot
+)
+
 $ErrorActionPreference = 'Stop'
-$baseUrl = (Read-Host 'Адрес сайта Vercel, например https://homework-ashy-xi.vercel.app').Trim().TrimEnd('/')
-if ($baseUrl -notmatch '^https://[A-Za-z0-9.-]+$') { throw 'Неверный HTTPS-адрес сайта.' }
-$secureSecret = Read-Host 'Введите SETUP_SECRET из Vercel' -AsSecureString
+
+if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
+  $BaseUrl = Read-Host 'Vercel site URL, for example https://homework-ashy-xi.vercel.app'
+}
+$baseUrl = $BaseUrl.Trim().TrimEnd('/')
+if ($baseUrl -notmatch '^https://[A-Za-z0-9.-]+$') { throw 'Invalid HTTPS site URL.' }
+
+$bundlePath = Join-Path $PSScriptRoot 'server\private\vercel-secrets.dpapi.json'
+if (Test-Path -LiteralPath $bundlePath) {
+  $bundle = Get-Content -Raw -LiteralPath $bundlePath | ConvertFrom-Json
+  $secureSecret = ConvertTo-SecureString -String ([string]$bundle.SETUP_SECRET)
+} else {
+  $secureSecret = Read-Host 'Enter SETUP_SECRET from Vercel' -AsSecureString
+}
+
 $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureSecret)
 try {
   $plainSecret = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
   $payload = @{}
   $statePath = Join-Path $PSScriptRoot 'server\private\state.json'
-  if (Test-Path -LiteralPath $statePath) {
+  if (-not $SkipSnapshot -and (Test-Path -LiteralPath $statePath)) {
     $localState = Get-Content -Raw -LiteralPath $statePath | ConvertFrom-Json
     $payload.snapshot = @{
       tasks = $localState.tasks
       scheduleChanges = @($localState.scheduleChanges)
       weekAnchor = $localState.weekAnchor
     }
-    Write-Host 'Текущие задания и изменения расписания будут перенесены. Токен и Telegram ID не отправляются.'
+    Write-Host 'Tasks and schedule changes will be migrated. Token and Telegram ID are not included.'
   }
   $jsonBody = $payload | ConvertTo-Json -Depth 12 -Compress
   $result = Invoke-RestMethod -Method Post -Uri "$baseUrl/api/setup" -Headers @{ Authorization = "Bearer $plainSecret" } -ContentType 'application/json' -Body $jsonBody
-  if (-not $result.ok) { throw 'Webhook не настроен.' }
-  Write-Host "Готово. Подключён $($result.bot)."
-  if ($result.next -eq 'pair_owner') { Write-Host 'Теперь отправьте боту: /start ВАШ_BOT_PAIRING_CODE' }
+  if (-not $result.ok) { throw 'Webhook setup failed.' }
+  Write-Host "Webhook ready for $($result.bot)."
 } finally {
   $plainSecret = $null
   [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)

@@ -2,7 +2,7 @@ import http from 'node:http';
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import calendar from '../js/calendar.js';
 import { createController } from './bot.mjs';
 
@@ -22,6 +22,7 @@ if (!Array.isArray(state.tasks)) throw new Error('Неверный формат 
 if (!calendar.validAnchor(state.weekAnchor)) state.weekAnchor = { ...calendar.defaultAnchor };
 if (!Array.isArray(state.scheduleChanges)) state.scheduleChanges = [];
 if (state.pending && !state.pending.kind) state.pending = null;
+if (!state.pendingByUser || typeof state.pendingByUser !== 'object' || Array.isArray(state.pendingByUser)) state.pendingByUser = {};
 let queue = Promise.resolve();
 function save() {
   const snapshot = JSON.stringify(state, null, 2);
@@ -34,8 +35,6 @@ function save() {
 let connected = false;
 let status = webOnly ? 'web-only' : 'connecting';
 let lastSuccess = 0;
-const pairingCode = randomBytes(16).toString('hex');
-const expires = Date.now() + 1800000;
 async function telegram(method, body = {}) {
   try {
     const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
@@ -57,15 +56,6 @@ async function telegram(method, body = {}) {
 }
 const bot = createController({ state, save, telegram });
 async function handle(update) {
-  if (!state.owner) {
-    const msg = update.message;
-    const candidate = msg?.text?.match(/^\/start ([a-f0-9]+)$/)?.[1] || '';
-    if (msg?.chat.type === 'private' && !msg.from.is_bot && Date.now() < expires && candidate.length === pairingCode.length && timingSafeEqual(Buffer.from(candidate), Buffer.from(pairingCode))) {
-      state.owner = msg.from.id; await save(); await bot.menu(msg.chat.id);
-      console.log('Владелец подтверждён.');
-    }
-    return;
-  }
   await bot.handle(update);
 }
 const publicFiles = new Map([
@@ -118,8 +108,7 @@ server.listen(port, '127.0.0.1', async () => {
         const hook = await telegram('getWebhookInfo');
         if (hook.url) { status = 'webhook-conflict'; console.error('Бот подключён к другому серверу через webhook.'); break; }
         console.log('Подключён @Polytech_homework_bot.');
-        if (state.owner) await bot.menu(state.owner);
-        else console.log(`Отправьте боту: /start ${pairingCode}`);
+        console.log('Бот доступен всем пользователям в личных сообщениях.');
         initialized = true;
       }
       const updates = await telegram('getUpdates', { offset: state.offset || 0, timeout: 5, allowed_updates: ['message', 'callback_query'] });

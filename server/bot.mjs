@@ -136,9 +136,9 @@ export function createController({ state, save, telegram, now = () => new Date()
     const text = all[n] + (all.length > 1 ? `\n\n${n + 1}/${all.length}` : '');
     return id ? telegram('editMessageText', { chat_id: chat, message_id: id, text, ...extra }) : send(chat, text, controls.length ? extra : {});
   }
-  async function handle(update) {
+  async function handleCurrent(update) {
     const cb = update.callback_query; const msg = cb?.message || update.message; const from = cb?.from || msg?.from;
-    if (!msg || msg.chat.type !== 'private' || !from || from.id !== state.owner || from.is_bot) return;
+    if (!msg || msg.chat.type !== 'private' || !from || from.is_bot) return;
     const chat = msg.chat.id;
     if (!cb) {
       const text = msg.text?.trim() || '';
@@ -202,6 +202,22 @@ export function createController({ state, save, telegram, now = () => new Date()
       return confirm(chat, id);
     }
     if (action === 'save') return commit(chat, id);
+  }
+
+  async function handle(update) {
+    const cb = update.callback_query; const msg = cb?.message || update.message; const from = cb?.from || msg?.from;
+    if (!msg || msg.chat.type !== 'private' || !from || from.is_bot) return;
+    if (!state.pendingByUser || typeof state.pendingByUser !== 'object' || Array.isArray(state.pendingByUser)) state.pendingByUser = {};
+    const userKey = String(from.id);
+    const previousPending = state.pending || null;
+    state.pending = state.pendingByUser[userKey] || null;
+    try {
+      return await handleCurrent(update);
+    } finally {
+      if (state.pending) state.pendingByUser[userKey] = state.pending;
+      else delete state.pendingByUser[userKey];
+      state.pending = previousPending;
+    }
   }
   return { handle, menu, list, pages };
 }
