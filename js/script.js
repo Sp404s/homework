@@ -2,21 +2,96 @@
 if (['127.0.0.1', 'localhost'].includes(location.hostname) && location.port === '5500') {
   location.replace(`http://${location.hostname}:3210/`);
 }
-// Разделы студенческого портала.
-const sections = {
-  homework: {
-    title: 'Домашние задания',
-    description: '',
+const LANGUAGE_KEY = 'student-language';
+const interfaceCopy = {
+  ru: {
+    locale: 'ru-RU', documentLanguage: 'ru', pageTitle: 'Студенческий портал', logoAlt: 'Логотип',
+    openMenu: 'Открыть меню', closeMenu: 'Закрыть меню', menu: 'Меню', navigation: 'Разделы портала',
+    language: 'Язык', footer: 'Задания и расписание · Карта в разработке',
+    sections: {
+      homework: { title: 'Домашние задания', description: '' },
+      map: { title: 'Карта', description: 'Здесь появится карта учебного заведения и расположение корпусов.' },
+      schedule: { title: 'Расписание', description: '' },
+    },
+    today: 'Сегодня', week: 'Неделя:', previousWeek: '‹ Неделя', currentWeek: 'Сегодня', nextWeek: 'Неделя ›',
+    parityLabel: 'Чётность текущей недели', evenWeek: 'Чётная неделя', oddWeek: 'Нечётная неделя',
+    saveError: 'Не удалось сохранить. Запустите сервер и откройте http://127.0.0.1:3210.',
+    noLessons: 'Нет занятий', classCount: count => `${count} зан.`, todayMarker: 'Сегодня', changedMarker: 'Изменено',
+    scheduleChange: 'Изменение расписания', cancelled: 'занятие отменено', movedTo: 'перенесено на',
+    dueDate: 'Дата сдачи:', noDueLesson: 'нет занятия в расписании', further: 'В дальнейшем',
+    openLiveSite: 'Открыть сайт с актуальными заданиями',
   },
-  map: {
-    title: 'Карта',
-    description: 'Здесь появится карта учебного заведения и расположение корпусов.',
-  },
-  schedule: {
-    title: 'Расписание',
-    description: '',
+  zh: {
+    locale: 'zh-CN', documentLanguage: 'zh-CN', pageTitle: '学生门户', logoAlt: '标志',
+    openMenu: '打开菜单', closeMenu: '关闭菜单', menu: '菜单', navigation: '门户栏目',
+    language: '语言', footer: '作业与课程表 · 地图开发中',
+    sections: {
+      homework: { title: '家庭作业', description: '' },
+      map: { title: '地图', description: '这里将显示校园地图和各教学楼的位置。' },
+      schedule: { title: '课程表', description: '' },
+    },
+    today: '今天', week: '本周：', previousWeek: '‹ 上一周', currentWeek: '今天', nextWeek: '下一周 ›',
+    parityLabel: '当前周单双周', evenWeek: '双周', oddWeek: '单周',
+    saveError: '保存失败。请启动服务器并打开 http://127.0.0.1:3210。',
+    noLessons: '没有课程', classCount: count => `${count} 节课`, todayMarker: '今天', changedMarker: '有变更',
+    scheduleChange: '课程变更', cancelled: '课程已取消', movedTo: '改至',
+    dueDate: '截止日期：', noDueLesson: '课程表中没有该课程', further: '后续任务',
+    openLiveSite: '打开包含最新作业的网站',
   },
 };
+
+const chineseContent = {
+  subjects: {
+    'Английский язык': '英语',
+    'Иностранный язык в профессиональной коммуникации (английский)': '专业交流英语',
+    'Компьютерные технологии в дизайне': '设计中的计算机技术',
+    'Дизайн-проектирование и исследование': '设计项目与研究',
+    'ИИ в отрасли': '行业人工智能',
+    'Искусственный интеллект в отрасли': '行业人工智能',
+    'История и методология науки': '科学史与科学方法论',
+    'Теория дизайна': '设计理论',
+    'Дизайн-мышление': '设计思维',
+  },
+  types: { 'Лекция': '讲座', 'Практика': '实践课', 'КПР': '课程项目', 'Занятие': '课程' },
+  teachers: {
+    'Курочкина Анна Александровна': '库罗奇金娜·安娜·亚历山德罗芙娜',
+    'Князева Елена Валерьевна': '克尼亚泽娃·叶莲娜·瓦列里耶芙娜',
+    'Четина Мария Михайловна': '切季娜·玛丽亚·米哈伊洛芙娜',
+    'Шур Семен Юрьевич': '舒尔·谢苗·尤里耶维奇',
+    'Михайлова Алла Леонидовна': '米哈伊洛娃·阿拉·列昂尼多芙娜',
+    'Зубов Андрей Генрихович': '祖博夫·安德烈·根里霍维奇',
+    'Киреев Артур Генрихович': '基列耶夫·阿尔图尔·根里霍维奇',
+  },
+  tasks: {
+    'Выбрать научную статью, подготовить её содержание на русском языке и подготовиться к пересказу.': '选择一篇科学论文，用俄语准备内容摘要，并准备复述。',
+    'Выбрать тему будущего VR-пространства: например, космос, лес, музей, библиотека или другой вариант.': '选择未来 VR 空间的主题，例如太空、森林、博物馆、图书馆或其他主题。',
+    'Работать над проектом продукта из орехов и сухофруктов: изучить технологии производства, целевую аудиторию и аналоги.': '开展坚果和干果产品项目：研究生产技术、目标受众和同类产品。',
+    'Разработать форму и упаковку продукта, фирменный стиль и рекламные носители. Срок этого этапа пока не указан.': '设计产品造型与包装、品牌视觉和广告载体。此阶段的截止日期尚未确定。',
+    'Подготовить доклад на тему «Как устроены нейросети».': '准备题为《神经网络如何工作》的报告。',
+    'Подготовить реферат и презентацию на тему «Научные открытия, изменившие мир». Открытие должно быть совершено не раньше второй половины XIX века.': '准备题为《改变世界的科学发现》的论文和演示文稿。所选发现不得早于19世纪下半叶。',
+  },
+};
+
+let language = localStorage.getItem(LANGUAGE_KEY) === 'zh' ? 'zh' : 'ru';
+function copy() { return interfaceCopy[language]; }
+function translated(group, value) {
+  if (language !== 'zh' || value === undefined || value === null) return value;
+  return chineseContent[group]?.[value] || value;
+}
+function translatedPlace(value) {
+  if (language !== 'zh' || !value) return value;
+  return value.replace('Аудитория и корпус не указаны', '未注明教学楼和教室')
+    .replace('Главное здание', '主楼')
+    .replace('Гидротехнический корпус-2', '水利工程二号楼')
+    .replace('Научно-исследовательский корпус', '科研楼')
+    .replace(', ауд. ', '，教室 ');
+}
+function formattedDate(date, options) { return date.toLocaleDateString(copy().locale, options); }
+function formattedDateKey(value) {
+  if (language === 'ru') return StudentCalendar.format(value);
+  const date = new Date(`${value}T12:00:00`);
+  return formattedDate(date, { year: 'numeric', month: 'long', day: 'numeric' });
+}
 
 const buttons = document.querySelectorAll('[data-section]');
 const title = document.querySelector('#section-title');
@@ -24,9 +99,6 @@ const description = document.querySelector('#section-description');
 const content = document.querySelector('#content');
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-function calendarDay(date) {
-  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000;
-}
 function mondayDay(date) {
   return StudentCalendar.mondayDay(date);
 }
@@ -100,10 +172,6 @@ let homework = [
 const homeworkPanel = element('div', '', 'homework-panel');
 document.querySelector('#content').append(homeworkPanel);
 
-function nextLessonDate(subject, now = new Date()) {
-  return StudentCalendar.nextDate(subject, weekAnchor, now, scheduleChanges);
-}
-
 async function persistWeek(anchor) {
   if (location.protocol === 'file:') throw new Error('Откройте сайт через сервер');
   if (!isLocalServer) {
@@ -124,27 +192,14 @@ function daysUntil(due, now = new Date()) {
   return Math.round((Date.UTC(year, month - 1, day) -
     Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
 }
-function dayWord(count) {
-  const n = Math.abs(count);
-  if (n % 100 >= 11 && n % 100 <= 14) return 'дней';
-  if (n % 10 === 1) return 'день';
-  if (n % 10 >= 2 && n % 10 <= 4) return 'дня';
-  return 'дней';
-}
-function deadlineLabel(days) {
-  if (days === 0) return 'Сдать сегодня';
-  if (days === 1) return 'Сдать завтра';
-  if (days < 0) return `Срок прошёл ${-days} ${dayWord(days)} назад`;
-  return `Через ${days} ${dayWord(days)}`;
-}
 function renderHomework() {
   homeworkPanel.replaceChildren();
   const today = new Date();
-  homeworkPanel.append(element('p', `Сегодня ${today.toLocaleDateString('ru-RU', {
+  homeworkPanel.append(element('p', `${copy().today} ${formattedDate(today, {
     day: 'numeric', month: 'long', year: 'numeric',
   })}`, 'today-label'));
   if (location.protocol === 'file:') {
-    const link = element('a', 'Открыть сайт с актуальными заданиями');
+    const link = element('a', copy().openLiveSite);
     link.href = 'http://127.0.0.1:3210';
     homeworkPanel.append(link);
   }
@@ -154,7 +209,8 @@ function renderHomework() {
     if (!task.due) {
       const card = element('article', '', 'homework-card');
       card.style.setProperty('--item-index', index);
-      card.append(element('h3', task.subject), element('p', 'Дата сдачи: нет занятия в расписании'), element('p', task.text));
+      card.append(element('h3', translated('subjects', task.subject)),
+        element('p', `${copy().dueDate} ${copy().noDueLesson}`), element('p', translated('tasks', task.text)));
       cards.append(card);
       return;
     }
@@ -166,13 +222,13 @@ function renderHomework() {
     const date = new Date(year, month - 1, day);
     const meta = element('div', '', 'homework-meta');
     const deadline = element('time');
-    deadline.append(element('strong', date.toLocaleDateString('ru-RU')));
+    deadline.append(element('strong', formattedDate(date)));
     deadline.dateTime = task.due;
-    meta.append(element('span', 'Дата сдачи:'), deadline);
-    card.append(element('h3', task.subject), meta, element('p', task.text));
+    meta.append(element('span', copy().dueDate), deadline);
+    card.append(element('h3', translated('subjects', task.subject)), meta, element('p', translated('tasks', task.text)));
     if (task.next) {
       const next = element('div', '', 'homework-next');
-      next.append(element('strong', 'В дальнейшем'), element('p', task.next));
+      next.append(element('strong', copy().further), element('p', translated('tasks', task.next)));
       card.append(next);
     }
     cards.append(card);
@@ -190,13 +246,15 @@ function renderSchedule() {
   monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
   monday.setDate(monday.getDate() + viewWeekOffset * 7);
   selectedWeek = weekFor(monday);
-  const dateFormat = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
+  const dateFormat = new Intl.DateTimeFormat(copy().locale, { day: 'numeric', month: 'long' });
   const sunday = new Date(monday);
   sunday.setDate(sunday.getDate() + 6);
-  schedulePanel.append(element('p', `Сегодня ${dateFormat.format(today)} ${today.getFullYear()} г.`, 'today-label'));
-  schedulePanel.append(element('p', `Неделя: ${dateFormat.format(monday)} — ${dateFormat.format(sunday)}`, 'week-range'));
+  schedulePanel.append(element('p', `${copy().today} ${formattedDate(today, {
+    day: 'numeric', month: 'long', year: 'numeric',
+  })}`, 'today-label'));
+  schedulePanel.append(element('p', `${copy().week} ${dateFormat.format(monday)} — ${dateFormat.format(sunday)}`, 'week-range'));
   const weekNav = element('div', '', 'week-switcher');
-  for (const [label, offset] of [['‹ Неделя', -1], ['Сегодня', 0], ['Неделя ›', 1]]) {
+  for (const [label, offset] of [[copy().previousWeek, -1], [copy().currentWeek, 0], [copy().nextWeek, 1]]) {
     const button = element('button', label); button.type = 'button';
     button.addEventListener('click', () => { viewWeekOffset = offset ? viewWeekOffset + offset : 0; renderSchedule(); });
     weekNav.append(button);
@@ -204,8 +262,8 @@ function renderSchedule() {
   schedulePanel.append(weekNav);
   const switcher = element('div', '', 'week-switcher');
   switcher.setAttribute('role', 'group');
-  switcher.setAttribute('aria-label', 'Чётность текущей недели');
-  for (const [key, label] of [['even', 'Чётная неделя'], ['odd', 'Нечётная неделя']]) {
+  switcher.setAttribute('aria-label', copy().parityLabel);
+  for (const [key, label] of [['even', copy().evenWeek], ['odd', copy().oddWeek]]) {
     const button = element('button', label);
     button.type = 'button';
     button.dataset.week = key;
@@ -227,7 +285,7 @@ function renderSchedule() {
         renderHomework();
         schedulePanel.querySelector(`[data-week="${key}"]`).focus();
       } catch {
-        const notice = element('p', 'Не удалось сохранить. Запустите сервер и откройте http://127.0.0.1:3210.', 'week-range');
+        const notice = element('p', copy().saveError, 'week-range');
         notice.setAttribute('role', 'alert');
         schedulePanel.prepend(notice);
       } finally { weekSaving = false; }
@@ -239,7 +297,7 @@ function renderSchedule() {
     const date = StudentCalendar.addDays(`${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`, index);
     return { ...day, lessons: StudentCalendar.lessonsOn(date, weekAnchor, scheduleChanges), dateKey: date };
   });
-  days.forEach(({ day, lessons, note, dateKey }, index) => {
+  days.forEach(({ day, lessons, dateKey }, index) => {
     const date = new Date(monday);
     date.setDate(date.getDate() + index);
     const isToday = date.toDateString() === today.toDateString();
@@ -255,16 +313,17 @@ function renderSchedule() {
     toggle.dataset.date = dateKey;
     toggle.disabled = !lessons.length && !changes.length;
     const label = element('span', '', 'day-label');
-    label.append(element('span', day, 'day-name'),
-      element('span', dateFormat.format(date) + (isToday ? ' · Сегодня' : '') + (changes.length ? ' · Изменено' : ''), 'day-date'));
-    const status = element('span', lessons.length ? `${lessons.length} зан.` : 'Нет занятий', 'day-status');
+    label.append(element('span', language === 'zh' ? ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'][index] : day, 'day-name'),
+      element('span', dateFormat.format(date) + (isToday ? ` · ${copy().todayMarker}` : '') +
+        (changes.length ? ` · ${copy().changedMarker}` : ''), 'day-date'));
+    const status = element('span', lessons.length ? copy().classCount(lessons.length) : copy().noLessons, 'day-status');
     toggle.append(label, status);
     if (lessons.length || changes.length) {
       const arrow = element('span', '', 'day-arrow');
       arrow.setAttribute('aria-hidden', 'true');
       toggle.append(arrow);
     } else {
-      toggle.title = note;
+      toggle.title = copy().noLessons;
     }
     heading.append(toggle);
     dayBlock.append(heading);
@@ -281,20 +340,23 @@ function renderSchedule() {
     lessons.forEach(({ time, subject, type, teacher, place, changed }) => {
       const item = element('li', '', 'lesson');
       const topLine = element('div', '', 'lesson-topline');
-      const lessonType = element('span', type || 'Занятие', 'lesson-type');
+      const lessonType = element('span', translated('types', type || 'Занятие'), 'lesson-type');
       const normalizedType = String(type || '').toLocaleLowerCase('ru-RU');
       if (normalizedType.includes('практик')) lessonType.classList.add('lesson-type--practice');
       else if (normalizedType.includes('лекц')) lessonType.classList.add('lesson-type--lecture');
       topLine.append(element('span', time, 'lesson-time'), lessonType);
       const details = element('div');
-      if (changed) { item.classList.add('lesson-changed'); details.append(element('span', 'Изменение расписания', 'change-badge')); }
-      details.append(element('h4', subject), element('p', teacher), element('p', place, 'lesson-place'));
+      if (changed) { item.classList.add('lesson-changed'); details.append(element('span', copy().scheduleChange, 'change-badge')); }
+      details.append(element('h4', translated('subjects', subject)), element('p', translated('teachers', teacher)),
+        element('p', translatedPlace(place), 'lesson-place'));
       item.append(topLine, details);
       list.append(item);
     });
     for (const change of changes) {
       if (change.cancelled || (change.sourceDate === dateKey && change.date !== dateKey)) {
-        list.append(element('li', `${change.subject}: ${change.cancelled ? 'занятие отменено' : 'перенесено на ' + StudentCalendar.format(change.date) + ', ' + change.time}`, 'lesson change-note'));
+        const separator = language === 'zh' ? '，' : ', ';
+        list.append(element('li', `${translated('subjects', change.subject)}: ${change.cancelled ? copy().cancelled :
+          copy().movedTo + ' ' + formattedDateKey(change.date) + separator + change.time}`, 'lesson change-note'));
       }
     }
     if (lessons.length || changes.length) dayBlock.append(list);
@@ -354,11 +416,44 @@ menuPanel.addEventListener('click', (event) => {
       event.clientX < bounds.left || event.clientX > bounds.right)) closeMenu();
 });
 
+function applyLanguage(nextLanguage) {
+  language = nextLanguage === 'zh' ? 'zh' : 'ru';
+  localStorage.setItem(LANGUAGE_KEY, language);
+  const labels = copy();
+  document.documentElement.lang = labels.documentLanguage;
+  document.title = labels.pageTitle;
+  document.querySelector('.site-logo').alt = labels.logoAlt;
+  menuToggle.setAttribute('aria-label', labels.openMenu);
+  menuClose.setAttribute('aria-label', labels.closeMenu);
+  document.querySelector('#menu-title').textContent = labels.menu;
+  document.querySelector('.menu-navigation').setAttribute('aria-label', labels.navigation);
+  document.querySelector('.language-switcher').setAttribute('aria-label', labels.language);
+  document.querySelector('#site-footer').textContent = labels.footer;
+  buttons.forEach((button) => {
+    button.querySelector('span').textContent = labels.sections[button.dataset.section].title;
+  });
+  document.querySelectorAll('[data-language]').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.language === language));
+  });
+  const activeButton = Array.from(buttons).find((button) => button.getAttribute('aria-pressed') === 'true') || buttons[0];
+  const section = labels.sections[activeButton.dataset.section];
+  title.textContent = section.title;
+  description.textContent = section.description;
+  description.hidden = !section.description;
+  renderHomework();
+  renderSchedule();
+}
+
+document.querySelectorAll('[data-language]').forEach((button) => {
+  button.addEventListener('click', () => applyLanguage(button.dataset.language));
+});
+applyLanguage(language);
+
 let activeSection = 'homework';
 let sectionSwitching = false;
 async function switchSection(button) {
   const key = button.dataset.section;
-  const section = sections[key];
+  const section = copy().sections[key];
   if (!section || sectionSwitching || key === activeSection) return;
   sectionSwitching = true;
   content.classList.add('is-switching');
