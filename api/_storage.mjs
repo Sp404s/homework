@@ -1,6 +1,7 @@
 import seed from '../server/seed.json' with { type: 'json' };
 import calendar from '../js/calendar.js';
 import { MAX_ATTACHMENTS, validAttachment } from './_attachments.mjs';
+import { createHash } from 'node:crypto';
 
 const stateKey = process.env.STUDENT_STATE_KEY || 'student-portal:state:v1';
 const redisUrl = () => process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || '';
@@ -27,8 +28,27 @@ async function command(parts) {
 function validTask(task) {
   return task && calendar.subjects.includes(task.subject) && typeof task.text === 'string' && task.text.length <= 4000 &&
     (task.next === undefined || (typeof task.next === 'string' && task.next.length <= 4000)) &&
+    (task.textZh === undefined || (typeof task.textZh === 'string' && task.textZh.length <= 8000)) &&
+    (task.nextZh === undefined || (typeof task.nextZh === 'string' && task.nextZh.length <= 8000)) &&
     (task.due === undefined || calendar.validDate(task.due)) &&
     (task.attachments === undefined || (Array.isArray(task.attachments) && task.attachments.length <= MAX_ATTACHMENTS && task.attachments.every(validAttachment)));
+}
+
+function translationKey(source) {
+  return `${stateKey}:translation:zh:${createHash('sha256').update(source).digest('hex')}`;
+}
+
+export async function loadCachedTranslation(source) {
+  if (typeof source !== 'string' || !source || source.length > 4000) return null;
+  const value = await command(['GET', translationKey(source)]);
+  return typeof value === 'string' && value.length <= 8000 ? value : null;
+}
+
+export async function saveCachedTranslation(source, translated) {
+  if (typeof source !== 'string' || !source || source.length > 4000 ||
+      typeof translated !== 'string' || !translated || translated.length > 8000) return false;
+  await command(['SET', translationKey(source), translated, 'EX', '31536000']);
+  return true;
 }
 
 function validChange(change) {

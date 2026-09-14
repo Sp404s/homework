@@ -5,6 +5,7 @@ import cal from '../js/calendar.js';
 const state = { owner: null, tasks: [{ subject: 'Английский язык', text: 'Старое задание' }], weekAnchor: { ...cal.defaultAnchor }, scheduleChanges: [], pending: null, pendingByUser: {} };
 const sent = []; let saved;
 const bot = createController({ state, save: async () => { saved = JSON.parse(JSON.stringify(state)); }, now: () => new Date('2026-09-13T12:00:00Z'),
+  translateTask: async task => ({ ...task, textZh: `中文：${task.text}`, ...(task.next ? { nextZh: `中文：${task.next}` } : {}) }),
   telegram: async (method, body) => { sent.push({ method, ...body }); return {}; } });
 const msg = (text, id = 42) => bot.handle({ message: { from: { id }, chat: { id, type: 'private' }, text } });
 const documentMsg = (document, id = 42) => bot.handle({ message: { from: { id }, chat: { id, type: 'private' }, document } });
@@ -50,6 +51,7 @@ await click('attachmentsdone'); await click('date', '2026-09-18');
 assert.equal(pending().stage, 'confirm');
 await click('save');
 assert.equal(state.tasks[0].due, '2026-09-18'); assert.equal(state.tasks[0].dueTime, undefined);
+assert.equal(state.tasks[0].textZh, '中文：Текст <статьи> & пересказ');
 assert.equal(state.tasks[0].attachments.length, 2); assert.ok(state.tasks[0].attachments.some(item => item.name === 'Статья.pdf'));
 assert.equal(cal.taskDate(state.tasks[0], state.weekAnchor, state.scheduleChanges, new Date('2026-09-20T12:00:00Z')), '2026-09-18');
 const n = sent.length; await msg('📋 Посмотреть список заданного');
@@ -72,4 +74,4 @@ assert.equal(cal.nextDate('История и методология науки',
 for (const packet of sent) {
   for (const row of packet.reply_markup?.inline_keyboard || []) for (const button of row) assert.ok(Buffer.byteLength(button.callback_data) <= 64);
 }
-console.log('PASS: buttons, multi-user dialogs, schedule editing, deadlines, links/files, limits, list and callback sizes');
+console.log('PASS: buttons, multi-user dialogs, schedule editing, deadlines, translation, attachments and callback sizes');

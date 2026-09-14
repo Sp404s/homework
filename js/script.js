@@ -78,6 +78,11 @@ function translated(group, value) {
   if (language !== 'zh' || value === undefined || value === null) return value;
   return chineseContent[group]?.[value] || value;
 }
+function translatedTask(task, field = 'text') {
+  const value = task[field];
+  if (language !== 'zh') return value;
+  return task[`${field}Zh`] || translated('tasks', value);
+}
 function translatedPlace(value) {
   if (language !== 'zh' || !value) return value;
   return value.replace('Аудитория и корпус не указаны', '未注明教学楼和教室')
@@ -237,7 +242,7 @@ function renderHomework() {
       const card = element('article', '', 'homework-card');
       card.style.setProperty('--item-index', index);
       card.append(element('h3', translated('subjects', task.subject)),
-        element('p', `${copy().dueDate} ${copy().noDueLesson}`), element('p', translated('tasks', task.text)));
+        element('p', `${copy().dueDate} ${copy().noDueLesson}`), element('p', translatedTask(task)));
       appendHomeworkAttachments(card, task);
       cards.append(card);
       return;
@@ -253,10 +258,10 @@ function renderHomework() {
     deadline.append(element('strong', formattedDate(date)));
     deadline.dateTime = task.due;
     meta.append(element('span', copy().dueDate), deadline);
-    card.append(element('h3', translated('subjects', task.subject)), meta, element('p', translated('tasks', task.text)));
+    card.append(element('h3', translated('subjects', task.subject)), meta, element('p', translatedTask(task)));
     if (task.next) {
       const next = element('div', '', 'homework-next');
-      next.append(element('strong', copy().further), element('p', translated('tasks', task.next)));
+      next.append(element('strong', copy().further), element('p', translatedTask(task, 'next')));
       card.append(next);
     }
     appendHomeworkAttachments(card, task);
@@ -548,6 +553,8 @@ async function syncHomework() {
     if (!Array.isArray(data.tasks) || data.tasks.length > 50 || !data.tasks.every((task) =>
       task && knownSubjects.has(task.subject) && typeof task.text === 'string' && task.text.length <= 4000 &&
       (task.next === undefined || (typeof task.next === 'string' && task.next.length <= 4000)) &&
+      (task.textZh === undefined || (typeof task.textZh === 'string' && task.textZh.length <= 8000)) &&
+      (task.nextZh === undefined || (typeof task.nextZh === 'string' && task.nextZh.length <= 8000)) &&
       (task.attachments === undefined || (Array.isArray(task.attachments) && task.attachments.length <= 10 && task.attachments.every(validAttachment))))) throw new Error('Invalid data');
     if (anchorChanged || changesChanged || JSON.stringify(homework) !== JSON.stringify(data.tasks)) {
       homework = data.tasks;

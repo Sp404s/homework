@@ -10,7 +10,7 @@ export const keyboard = { keyboard: [
 const esc = s => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 const rows = (values, n) => Array.from({ length: Math.ceil(values.length / n) }, (_, i) => values.slice(i * n, (i + 1) * n));
 
-export function createController({ state, save, telegram, now = () => new Date() }) {
+export function createController({ state, save, telegram, translateTask = async task => task, now = () => new Date() }) {
   const send = (chat, text, extra = {}) => telegram('sendMessage', { chat_id: chat, text, parse_mode: 'HTML', reply_markup: keyboard, ...extra });
   const menu = chat => send(chat, 'Выберите действие кнопками ниже.');
   function btn(text, action, value = '') {
@@ -133,8 +133,8 @@ export function createController({ state, save, telegram, now = () => new Date()
     const oldTasks = state.tasks;
     const oldChanges = state.scheduleChanges;
     if (p.kind === 'homework') {
-      const task = { subject: p.subject, text: p.text, ...(p.next ? { next: p.next } : {}), ...(p.due ? { due: p.due } : {}),
-        ...(p.attachments?.length ? { attachments: structuredClone(p.attachments) } : {}) };
+      const task = await translateTask({ subject: p.subject, text: p.text, ...(p.next ? { next: p.next } : {}), ...(p.due ? { due: p.due } : {}),
+        ...(p.attachments?.length ? { attachments: structuredClone(p.attachments) } : {}) });
       state.tasks = [...state.tasks.filter(t => t.subject !== p.subject), task];
     } else {
       const l = p.lesson;

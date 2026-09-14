@@ -2,6 +2,7 @@ import { createController } from '../server/bot.mjs';
 import { json, sameSecret, validWebhookSecret } from './_http.mjs';
 import { loadState, saveState } from './_storage.mjs';
 import { createTelegram, telegramConfigured } from './_telegram.mjs';
+import { translateTask } from './_translation.mjs';
 
 export async function POST(request) {
   const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
@@ -21,7 +22,7 @@ export async function POST(request) {
     const state = await loadState();
     if (update.update_id <= state.lastUpdateId) return json({ ok: true });
     const telegram = createTelegram();
-    const bot = createController({ state, save: async () => {}, telegram });
+    const bot = createController({ state, save: async () => {}, telegram, translateTask });
 
     await bot.handle(update);
 

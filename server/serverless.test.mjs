@@ -35,6 +35,10 @@ globalThis.fetch = async (url, options = {}) => {
   if (target.startsWith('https://api.telegram.org/file/bot')) {
     return new Response(Uint8Array.from([37, 80, 68, 70]), { headers: { 'Content-Type': 'application/pdf', 'Content-Length': '4' } });
   }
+  if (target.startsWith('https://translate.googleapis.com/translate_a/single')) {
+    const source = new URLSearchParams(String(options.body)).get('q');
+    return Response.json([[[`中文：${source}`, source]]]);
+  }
   throw new Error('Unexpected fetch target');
 };
 
@@ -88,10 +92,11 @@ await saveState(state);
 const apiResponse = await homework();
 assert.equal(apiResponse.status, 200);
 const apiData = await apiResponse.json();
-assert.equal(apiData.version, 5);
+assert.equal(apiData.version, 6);
 assert.equal(apiData.botConnected, true);
 assert.equal('settingsKey' in apiData, false);
 assert.equal(apiData.tasks.length, 5);
+assert.ok(apiData.tasks[0].textZh.startsWith('中文：'));
 assert.equal(apiData.tasks[0].attachments[0].url, 'https://example.com/article');
 assert.ok(apiData.tasks[0].attachments[1].url.startsWith('/api/file?'));
 assert.equal('fileId' in apiData.tasks[0].attachments[1], false);
@@ -121,4 +126,4 @@ assert.equal(duplicate.status, 200);
 assert.equal(telegramCalls.length, callsBeforeDuplicate);
 
 globalThis.fetch = realFetch;
-console.log('PASS: Vercel API, Redis, webhook security, public attachments, file proxy and duplicate protection');
+console.log('PASS: Vercel API, Redis, webhook security, dynamic translation, attachments and duplicate protection');

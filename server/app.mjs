@@ -5,6 +5,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import calendar from '../js/calendar.js';
 import { MAX_FILE_BYTES, publicTasks } from '../api/_attachments.mjs';
+import { translateTask, translateTasks } from '../api/_translation.mjs';
 import { createController } from './bot.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -55,7 +56,7 @@ async function telegram(method, body = {}) {
     throw new Error('Telegram network unavailable');
   }
 }
-const bot = createController({ state, save, telegram });
+const bot = createController({ state, save, telegram, translateTask });
 async function handle(update) {
   await bot.handle(update);
 }
@@ -94,7 +95,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method !== 'GET') { res.writeHead(405); return res.end(); }
     if (pathname === '/api/homework') {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      return res.end(JSON.stringify({ version: 5, tasks: publicTasks(state.tasks), scheduleChanges: state.scheduleChanges, weekAnchor: state.weekAnchor, settingsKey,
+      const tasks = await translateTasks(publicTasks(state.tasks));
+      return res.end(JSON.stringify({ version: 6, tasks, scheduleChanges: state.scheduleChanges, weekAnchor: state.weekAnchor, settingsKey,
         botConnected: connected && Date.now() - lastSuccess < 70000, botStatus: status, today: calendar.today() }));
     }
     if (pathname === '/api/file') {
