@@ -1,5 +1,6 @@
 import seed from '../server/seed.json' with { type: 'json' };
 import calendar from '../js/calendar.js';
+import { MAX_ATTACHMENTS, validAttachment } from './_attachments.mjs';
 
 const stateKey = process.env.STUDENT_STATE_KEY || 'student-portal:state:v1';
 const redisUrl = () => process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || '';
@@ -26,7 +27,8 @@ async function command(parts) {
 function validTask(task) {
   return task && calendar.subjects.includes(task.subject) && typeof task.text === 'string' && task.text.length <= 4000 &&
     (task.next === undefined || (typeof task.next === 'string' && task.next.length <= 4000)) &&
-    (task.due === undefined || calendar.validDate(task.due));
+    (task.due === undefined || calendar.validDate(task.due)) &&
+    (task.attachments === undefined || (Array.isArray(task.attachments) && task.attachments.length <= MAX_ATTACHMENTS && task.attachments.every(validAttachment)));
 }
 
 function validChange(change) {

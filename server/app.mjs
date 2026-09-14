@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import calendar from '../js/calendar.js';
+import { MAX_FILE_BYTES, publicTasks } from '../api/_attachments.mjs';
 import { createController } from './bot.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -58,6 +59,11 @@ const bot = createController({ state, save, telegram });
 async function handle(update) {
   await bot.handle(update);
 }
+function attachmentDisposition(name) {
+  const safe = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_').slice(0, 180) || 'file';
+  const encoded = encodeURIComponent(name).replace(/[!'()*]/g, char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `attachment; filename="${safe}"; filename*=UTF-8''${encoded}`;
+}
 const publicFiles = new Map([
   ['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']],
   ['/css/style.css', ['css/style.css', 'text/css']], ['/js/script.js', ['js/script.js', 'text/javascript']],
@@ -74,7 +80,8 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
   if (![`127.0.0.1:${port}`, `localhost:${port}`].includes(req.headers.host)) { res.writeHead(403); return res.end(); }
   try {
-    const pathname = new URL(req.url, `http://127.0.0.1:${port}`).pathname;
+    const requestUrl = new URL(req.url, `http://127.0.0.1:${port}`);
+    const pathname = requestUrl.pathname;
     if (req.method === 'POST' && pathname === '/api/week') {
       if (req.headers.origin !== `http://${req.headers.host}` || req.headers['x-settings-key'] !== settingsKey) { res.writeHead(403); return res.end(); }
       let body = '';
@@ -87,8 +94,30 @@ const server = http.createServer(async (req, res) => {
     if (req.method !== 'GET') { res.writeHead(405); return res.end(); }
     if (pathname === '/api/homework') {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      return res.end(JSON.stringify({ version: 3, tasks: state.tasks, scheduleChanges: state.scheduleChanges, weekAnchor: state.weekAnchor, settingsKey,
+      return res.end(JSON.stringify({ version: 5, tasks: publicTasks(state.tasks), scheduleChanges: state.scheduleChanges, weekAnchor: state.weekAnchor, settingsKey,
         botConnected: connected && Date.now() - lastSuccess < 70000, botStatus: status, today: calendar.today() }));
+    }
+    if (pathname === '/api/file') {
+      const subject = requestUrl.searchParams.get('subject') || '';
+      const indexText = requestUrl.searchParams.get('index') || '';
+      const key = requestUrl.searchParams.get('key') || '';
+      if (!calendar.subjects.includes(subject) || !/^\d{1,2}$/.test(indexText)) { res.writeHead(400); return res.end('Invalid attachment'); }
+      const attachment = state.tasks.find(task => task.subject === subject)?.attachments?.[Number(indexText)];
+      if (!attachment || attachment.type !== 'file' || attachment.uniqueId !== key || attachment.size > MAX_FILE_BYTES) {
+        res.writeHead(404); return res.end('Attachment not found');
+      }
+      if (!token) { res.writeHead(503); return res.end('Bot is not connected'); }
+      const file = await telegram('getFile', { file_id: attachment.fileId });
+      if (!file || typeof file.file_path !== 'string' || !/^[A-Za-z0-9_./-]+$/.test(file.file_path) || file.file_path.includes('..') ||
+          (Number.isSafeInteger(file.file_size) && file.file_size > MAX_FILE_BYTES)) { res.writeHead(502); return res.end('Invalid Telegram file'); }
+      const upstream = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`, { signal: AbortSignal.timeout(20000) });
+      if (!upstream.ok) { res.writeHead(502); return res.end('Attachment unavailable'); }
+      const bytes = Buffer.from(await upstream.arrayBuffer());
+      if (bytes.length > MAX_FILE_BYTES) { res.writeHead(413); return res.end('Attachment too large'); }
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', attachmentDisposition(attachment.name));
+      res.setHeader('Content-Length', String(bytes.length));
+      return res.end(bytes);
     }
     const file = publicFiles.get(pathname);
     if (!file) { res.writeHead(404); return res.end('Not found'); }

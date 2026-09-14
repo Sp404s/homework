@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import cal from '../js/calendar.js';
+import { MAX_ATTACHMENTS, MAX_FILE_BYTES, linkName, normalizeHttpUrl } from '../api/_attachments.mjs';
 
 export const keyboard = { keyboard: [
   [{ text: '📅 Изменить расписание' }],
@@ -77,12 +78,50 @@ export function createController({ state, save, telegram, now = () => new Date()
     const buttons = rows(Array.from({ length: 24 }, (_, h) => btn(String(h).padStart(2, '0'), 'hour', String(h))), 6);
     return panel(chat, purpose === 'end' ? 'Выберите час окончания занятия' : 'Выберите час начала занятия', buttons, id);
   }
+  function attachmentLines(attachments = []) {
+    return attachments.map((attachment, index) => {
+      const label = attachment.type === 'link' ? 'Ссылка' : 'Файл';
+      return `${index + 1}. ${label}: ${esc(attachment.name)}`;
+    }).join('\n');
+  }
+  function attachmentPanel(chat, id) {
+    const p = state.pending;
+    p.stage = 'attachments';
+    if (!Array.isArray(p.attachments)) p.attachments = [];
+    const current = p.attachments.length ? attachmentLines(p.attachments) : 'Вложений пока нет.';
+    const buttons = [[btn('🔗 Добавить ссылку', 'addlink')], [btn('📎 Добавить файл', 'addfile')]];
+    for (let i = 0; i < p.attachments.length; i++) {
+      buttons.push([btn(`Удалить ${i + 1}: ${p.attachments[i].name.slice(0, 24)}`, 'deleteattachment', String(i))]);
+    }
+    buttons.push([btn('Продолжить к сроку сдачи', 'attachmentsdone')]);
+    return panel(chat, `<b>Вложения</b> (${p.attachments.length}/${MAX_ATTACHMENTS})\n${current}\n\nФайлы и ссылки будут доступны всем посетителям сайта.`, buttons, id);
+  }
+  function attachmentPrompt(chat, kind, id, error = '') {
+    const p = state.pending;
+    p.stage = kind;
+    const instruction = kind === 'link' ? 'Отправьте ссылку, начинающуюся с http:// или https://.' :
+      `Отправьте файл как документ или фотографию. Максимальный размер — ${MAX_FILE_BYTES / 1_000_000} МБ.`;
+    return panel(chat, `${error ? `${esc(error)}\n\n` : ''}${instruction}\nВложение будет публично доступно на сайте.`, [[btn('Назад к вложениям', 'attachments')]], id);
+  }
+  function uploadedFile(message, count) {
+    const document = message.document;
+    const photo = Array.isArray(message.photo) ? message.photo.at(-1) : null;
+    const source = document || photo;
+    if (!source || !Number.isSafeInteger(source.file_size) || !/^[A-Za-z0-9_-]{1,512}$/.test(source.file_id || '') ||
+        !/^[A-Za-z0-9_-]{1,128}$/.test(source.file_unique_id || '')) return null;
+    const name = String(document?.file_name || `Фото ${count + 1}.jpg`).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 180);
+    return {
+      type: 'file', name: name || `Файл ${count + 1}`, fileId: source.file_id,
+      uniqueId: source.file_unique_id, size: source.file_size, mimeType: document?.mime_type || 'image/jpeg',
+    };
+  }
   function confirm(chat, id) {
     const p = state.pending; p.stage = 'confirm';
     let text;
     if (p.kind === 'homework') {
       const date = cal.taskDate(p, state.weekAnchor, state.scheduleChanges, now());
-      text = `<b>${esc(p.subject)}</b> (${cal.format(date)})\n\n${esc(p.text)}\n\n${p.due ? 'Дата выбрана вручную.' : 'Дата будет автоматически следовать расписанию.'}`;
+      const attachmentText = p.attachments?.length ? `\n\n<b>Вложения:</b>\n${attachmentLines(p.attachments)}` : '';
+      text = `<b>${esc(p.subject)}</b> (${cal.format(date)})\n\n${esc(p.text)}${attachmentText}\n\n${p.due ? 'Дата выбрана вручную.' : 'Дата будет автоматически следовать расписанию.'}`;
     } else {
       text = `<b>${esc(p.subject)}</b>\n` + (p.operation === 'cancel' ? `Отменить занятие ${cal.format(p.sourceDate)}?` : p.operation === 'restore' ? 'Убрать это изменение и вернуть обычное расписание?' : `${p.lesson ? 'Было: ' + cal.format(p.sourceDate) + ' · ' + p.lesson.time + '\n' : ''}Будет: ${cal.format(p.targetDate)} · ${p.start}–${p.end}`);
     }
@@ -94,7 +133,8 @@ export function createController({ state, save, telegram, now = () => new Date()
     const oldTasks = state.tasks;
     const oldChanges = state.scheduleChanges;
     if (p.kind === 'homework') {
-      const task = { subject: p.subject, text: p.text, ...(p.next ? { next: p.next } : {}), ...(p.due ? { due: p.due } : {}) };
+      const task = { subject: p.subject, text: p.text, ...(p.next ? { next: p.next } : {}), ...(p.due ? { due: p.due } : {}),
+        ...(p.attachments?.length ? { attachments: structuredClone(p.attachments) } : {}) };
       state.tasks = [...state.tasks.filter(t => t.subject !== p.subject), task];
     } else {
       const l = p.lesson;
@@ -118,7 +158,10 @@ export function createController({ state, save, telegram, now = () => new Date()
       const task = state.tasks.find(t => t.subject === subject);
       const due = cal.taskDate(task || { subject }, state.weekAnchor, state.scheduleChanges, now());
       const title = `<b>${esc(subject)}</b> (${cal.format(due)})`;
-      const body = task ? task.text + (task.next ? '\nВ дальнейшем: ' + task.next : '') : 'Задание пока не добавлено.';
+      const attachments = task?.attachments?.length ? '\nВложения:\n' + task.attachments.map((attachment, index) =>
+        `${index + 1}. ${attachment.type === 'link' ? 'Ссылка' : 'Файл'}: ${attachment.name}` +
+        (attachment.type === 'link' ? `\n${attachment.url}` : '')).join('\n') : '';
+      const body = task ? task.text + (task.next ? '\nВ дальнейшем: ' + task.next : '') + attachments : 'Задание пока не добавлено.';
       let part = ''; const parts = [];
       for (const ch of body) { const s = esc(ch); if (part.length + s.length > 2500) { parts.push(part); part = ''; } part += s; }
       parts.push(part);
@@ -146,10 +189,25 @@ export function createController({ state, save, telegram, now = () => new Date()
       if (['✏️ Изменить домашнее задание', '✏️ Добавить / изменить', '/add'].includes(text)) return begin(chat, 'homework');
       if (['📋 Посмотреть список заданного', '📋 Предметы и задания', '/list'].includes(text)) return list(chat);
       if (['/start', '/cancel', '✖️ Отмена'].includes(text)) { state.pending = null; return menu(chat); }
+      if (state.pending?.stage === 'link') {
+        const url = normalizeHttpUrl(text);
+        if (!url) return attachmentPrompt(chat, 'link', undefined, 'Ссылка не распознана.');
+        if (state.pending.attachments.length >= MAX_ATTACHMENTS) return attachmentPanel(chat);
+        state.pending.attachments.push({ type: 'link', name: linkName(url), url });
+        return attachmentPanel(chat);
+      }
+      if (state.pending?.stage === 'file') {
+        const attachment = uploadedFile(msg, state.pending.attachments.length);
+        if (!attachment) return attachmentPrompt(chat, 'file', undefined, 'Отправьте файл как документ или фотографию.');
+        if (attachment.size > MAX_FILE_BYTES) return attachmentPrompt(chat, 'file', undefined, `Файл больше ${MAX_FILE_BYTES / 1_000_000} МБ.`);
+        if (state.pending.attachments.length >= MAX_ATTACHMENTS) return attachmentPanel(chat);
+        state.pending.attachments.push(attachment);
+        return attachmentPanel(chat);
+      }
       if (state.pending?.stage === 'text' && text && !text.startsWith('/')) {
         if (text.length > 3000) return send(chat, 'Сократите текст до 3000 символов.');
         state.pending.text = text; delete state.pending.next;
-        return calendarPanel(chat, 'due');
+        return attachmentPanel(chat);
       }
       return menu(chat);
     }
@@ -162,6 +220,15 @@ export function createController({ state, save, telegram, now = () => new Date()
     const [, , action, value] = match; const id = msg.message_id;
     if (action === 'noop') return;
     if (action === 'cancel') { state.pending = null; return menu(chat); }
+    if (action === 'attachments' && p.kind === 'homework') return attachmentPanel(chat, id);
+    if (action === 'addlink' && p.kind === 'homework' && p.stage === 'attachments') return attachmentPrompt(chat, 'link', id);
+    if (action === 'addfile' && p.kind === 'homework' && p.stage === 'attachments') return attachmentPrompt(chat, 'file', id);
+    if (action === 'deleteattachment' && p.kind === 'homework' && p.stage === 'attachments' && /^\d+$/.test(value)) {
+      const index = Number(value);
+      if (index >= 0 && index < p.attachments.length) p.attachments.splice(index, 1);
+      return attachmentPanel(chat, id);
+    }
+    if (action === 'attachmentsdone' && p.kind === 'homework' && p.stage === 'attachments') return calendarPanel(chat, 'due', undefined, id);
     // Завершаем старый открытый выбор часов домашки уже без времени.
     if (p.kind === 'homework' && ['hour', 'minute'].includes(p.stage)) { delete p.dueTime; return confirm(chat, id); }
     if (action === 'month' && ['source', 'target', 'due'].includes(p.stage)) return calendarPanel(chat, p.stage, value, id);
@@ -178,11 +245,12 @@ export function createController({ state, save, telegram, now = () => new Date()
       if (p.kind === 'schedule') return timePanel(chat, 'start', id);
       p.stage = 'text';
       const existing = state.tasks.find(t => t.subject === p.subject);
+      p.attachments = structuredClone(existing?.attachments || []);
       return panel(chat, `<b>${esc(p.subject)}</b>\nОтправьте новый текст задания.${existing ? '\nИли оставьте прежний текст и измените только срок.' : ''}`, existing ? [[btn('Оставить прежний текст', 'keep')]] : [], id);
     }
     if (action === 'keep' && p.stage === 'text') {
       const existing = state.tasks.find(t => t.subject === p.subject);
-      if (existing) { p.text = existing.text; p.next = existing.next; return calendarPanel(chat, 'due', undefined, id); }
+      if (existing) { p.text = existing.text; p.next = existing.next; return attachmentPanel(chat, id); }
     }
     if (action === 'auto' && p.stage === 'due') { delete p.due; delete p.dueTime; return confirm(chat, id); }
     if (action === 'move' && p.stage === 'action') { p.operation = 'move'; return calendarPanel(chat, 'target', p.sourceDate.slice(0, 7), id); }

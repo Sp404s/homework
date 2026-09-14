@@ -1,13 +1,14 @@
 import calendar from '../js/calendar.js';
 import { json } from './_http.mjs';
+import { publicTasks } from './_attachments.mjs';
 import { loadState } from './_storage.mjs';
 
 export async function GET() {
   try {
     const state = await loadState();
     return json({
-      version: 4,
-      tasks: state.tasks,
+      version: 5,
+      tasks: publicTasks(state.tasks),
       scheduleChanges: state.scheduleChanges,
       weekAnchor: state.weekAnchor,
       botConnected: Boolean(state.webhookActive),

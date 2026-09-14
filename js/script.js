@@ -19,7 +19,7 @@ const interfaceCopy = {
     noLessons: 'Нет занятий', classCount: count => `${count} зан.`, todayMarker: 'Сегодня', changedMarker: 'Изменено',
     scheduleChange: 'Изменение расписания', cancelled: 'занятие отменено', movedTo: 'перенесено на',
     dueDate: 'Дата сдачи:', noDueLesson: 'нет занятия в расписании', further: 'В дальнейшем',
-    openLiveSite: 'Открыть сайт с актуальными заданиями',
+    openLiveSite: 'Открыть сайт с актуальными заданиями', attachments: 'Вложения', link: 'Ссылка', file: 'Файл',
   },
   zh: {
     locale: 'zh-CN', documentLanguage: 'zh-CN', pageTitle: '作业', logoAlt: '标志',
@@ -36,7 +36,7 @@ const interfaceCopy = {
     noLessons: '没有课程', classCount: count => `${count} 节课`, todayMarker: '今天', changedMarker: '有变更',
     scheduleChange: '课程变更', cancelled: '课程已取消', movedTo: '改至',
     dueDate: '截止日期：', noDueLesson: '课程表中没有该课程', further: '后续任务',
-    openLiveSite: '打开包含最新作业的网站',
+    openLiveSite: '打开包含最新作业的网站', attachments: '附件', link: '链接', file: '文件',
   },
 };
 
@@ -192,6 +192,33 @@ function daysUntil(due, now = new Date()) {
   return Math.round((Date.UTC(year, month - 1, day) -
     Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
 }
+function safeAttachmentUrl(attachment) {
+  if (!attachment || typeof attachment.url !== 'string') return null;
+  try {
+    const url = new URL(attachment.url, location.origin);
+    if (attachment.type === 'link' && ['http:', 'https:'].includes(url.protocol)) return url.href;
+    if (attachment.type === 'file' && url.origin === location.origin && url.pathname === '/api/file') return url.href;
+  } catch { /* Неправильная ссылка не отображается. */ }
+  return null;
+}
+function appendHomeworkAttachments(card, task) {
+  if (!Array.isArray(task.attachments) || !task.attachments.length) return;
+  const block = element('div', '', 'homework-attachments');
+  block.append(element('strong', copy().attachments));
+  const list = element('div', '', 'attachment-list');
+  for (const attachment of task.attachments) {
+    const url = safeAttachmentUrl(attachment);
+    if (!url) continue;
+    const kind = attachment.type === 'link' ? copy().link : copy().file;
+    const link = element('a', `${kind}: ${attachment.name}`, 'attachment-link');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    if (attachment.type === 'file') link.download = attachment.name;
+    list.append(link);
+  }
+  if (list.children.length) { block.append(list); card.append(block); }
+}
 function renderHomework() {
   homeworkPanel.replaceChildren();
   const today = new Date();
@@ -211,6 +238,7 @@ function renderHomework() {
       card.style.setProperty('--item-index', index);
       card.append(element('h3', translated('subjects', task.subject)),
         element('p', `${copy().dueDate} ${copy().noDueLesson}`), element('p', translated('tasks', task.text)));
+      appendHomeworkAttachments(card, task);
       cards.append(card);
       return;
     }
@@ -231,6 +259,7 @@ function renderHomework() {
       next.append(element('strong', copy().further), element('p', translated('tasks', task.next)));
       card.append(next);
     }
+    appendHomeworkAttachments(card, task);
     cards.append(card);
   });
   homeworkPanel.append(cards);
@@ -514,9 +543,12 @@ async function syncHomework() {
     const knownSubjects = new Set(Object.values(schedule).flatMap((days) => days.flatMap((day) => day.lessons.map((item) => item.subject))));
     knownSubjects.add('Английский язык');
     knownSubjects.add('ИИ в отрасли');
+    const validAttachment = attachment => attachment && ['link', 'file'].includes(attachment.type) &&
+      typeof attachment.name === 'string' && attachment.name.length > 0 && attachment.name.length <= 180 && safeAttachmentUrl(attachment);
     if (!Array.isArray(data.tasks) || data.tasks.length > 50 || !data.tasks.every((task) =>
       task && knownSubjects.has(task.subject) && typeof task.text === 'string' && task.text.length <= 4000 &&
-      (task.next === undefined || (typeof task.next === 'string' && task.next.length <= 4000)))) throw new Error('Invalid data');
+      (task.next === undefined || (typeof task.next === 'string' && task.next.length <= 4000)) &&
+      (task.attachments === undefined || (Array.isArray(task.attachments) && task.attachments.length <= 10 && task.attachments.every(validAttachment))))) throw new Error('Invalid data');
     if (anchorChanged || changesChanged || JSON.stringify(homework) !== JSON.stringify(data.tasks)) {
       homework = data.tasks;
       renderHomework();

@@ -29,7 +29,11 @@ globalThis.fetch = async (url, options = {}) => {
     const body = JSON.parse(options.body || '{}');
     telegramCalls.push({ method, body });
     if (method === 'getMe') return Response.json({ ok: true, result: { id: 7, username: 'Polytech_homework_bot' } });
+    if (method === 'getFile') return Response.json({ ok: true, result: { file_path: 'documents/paper.pdf', file_size: 4 } });
     return Response.json({ ok: true, result: true });
+  }
+  if (target.startsWith('https://api.telegram.org/file/bot')) {
+    return new Response(Uint8Array.from([37, 80, 68, 70]), { headers: { 'Content-Type': 'application/pdf', 'Content-Length': '4' } });
   }
   throw new Error('Unexpected fetch target');
 };
@@ -38,6 +42,8 @@ const { POST: setup } = await import('../api/setup.mjs');
 const { POST: webhook } = await import('../api/telegram.mjs');
 const { GET: homework } = await import('../api/homework.mjs');
 const { GET: health } = await import('../api/health.mjs');
+const { GET: fileDownload } = await import('../api/file.mjs');
+const { loadState, saveState, validateState } = await import('../api/_storage.mjs');
 
 const unauthorized = await setup(new Request('https://homework.example.test/api/setup', { method: 'POST' }));
 assert.equal(unauthorized.status, 401);
@@ -69,13 +75,38 @@ const secondUserResponse = await webhook(new Request('https://homework.example.t
 assert.equal(secondUserResponse.status, 200);
 assert.ok(telegramCalls.some(call => call.method === 'sendMessage' && call.body.chat_id === 99));
 
+const state = await loadState();
+const unsafeState = structuredClone(state);
+unsafeState.tasks[0].attachments = [{ type: 'link', name: 'bad', url: 'javascript:alert(1)' }];
+assert.throws(() => validateState(unsafeState), /invalid_tasks/);
+state.tasks[0].attachments = [
+  { type: 'link', name: 'example.com', url: 'https://example.com/article' },
+  { type: 'file', name: 'Статья.pdf', fileId: 'telegram_file_id_1', uniqueId: 'unique_file_1', size: 4, mimeType: 'application/pdf' },
+];
+await saveState(state);
+
 const apiResponse = await homework();
 assert.equal(apiResponse.status, 200);
 const apiData = await apiResponse.json();
-assert.equal(apiData.version, 4);
+assert.equal(apiData.version, 5);
 assert.equal(apiData.botConnected, true);
 assert.equal('settingsKey' in apiData, false);
 assert.equal(apiData.tasks.length, 5);
+assert.equal(apiData.tasks[0].attachments[0].url, 'https://example.com/article');
+assert.ok(apiData.tasks[0].attachments[1].url.startsWith('/api/file?'));
+assert.equal('fileId' in apiData.tasks[0].attachments[1], false);
+assert.equal(JSON.stringify(apiData).includes('telegram_file_id_1'), false);
+
+const callsBeforeWrongFile = telegramCalls.length;
+const wrongFile = await fileDownload(new Request('https://homework.example.test/api/file?subject=' +
+  encodeURIComponent(state.tasks[0].subject) + '&index=1&key=wrong'));
+assert.equal(wrongFile.status, 404);
+assert.equal(telegramCalls.length, callsBeforeWrongFile);
+const fileResponse = await fileDownload(new Request(new URL(apiData.tasks[0].attachments[1].url, 'https://homework.example.test')));
+assert.equal(fileResponse.status, 200);
+assert.equal(fileResponse.headers.get('content-type'), 'application/octet-stream');
+assert.ok(fileResponse.headers.get('content-disposition').includes("filename*=UTF-8''"));
+assert.deepEqual([...new Uint8Array(await fileResponse.arrayBuffer())], [37, 80, 68, 70]);
 
 const healthResponse = await health();
 const healthData = await healthResponse.json();
@@ -90,4 +121,4 @@ assert.equal(duplicate.status, 200);
 assert.equal(telegramCalls.length, callsBeforeDuplicate);
 
 globalThis.fetch = realFetch;
-console.log('PASS: Vercel API, Redis persistence, secret webhook, public multi-user access and duplicate protection');
+console.log('PASS: Vercel API, Redis, webhook security, public attachments, file proxy and duplicate protection');
