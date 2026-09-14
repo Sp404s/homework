@@ -1,0 +1,19 @@
+{
+  "name": "Студенческий портал",
+  "short_name": "Портал",
+  "description": "Расписание и домашние задания",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F5F5F0",
+  "theme_color": "#F56036",
+  "icons": [
+    {
+      "src": "assets/favicon.png",
+      "sizes": "1000x1000",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
