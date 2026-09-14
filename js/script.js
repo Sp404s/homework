@@ -5,7 +5,7 @@ if (['127.0.0.1', 'localhost'].includes(location.hostname) && location.port === 
 const LANGUAGE_KEY = 'student-language';
 const interfaceCopy = {
   ru: {
-    locale: 'ru-RU', documentLanguage: 'ru', pageTitle: 'Студенческий портал', logoAlt: 'Логотип',
+    locale: 'ru-RU', documentLanguage: 'ru', pageTitle: 'Домашка', logoAlt: 'Логотип',
     openMenu: 'Открыть меню', closeMenu: 'Закрыть меню', menu: 'Меню', navigation: 'Разделы портала',
     language: 'Язык', footer: 'Задания и расписание · Карта в разработке',
     sections: {
@@ -22,7 +22,7 @@ const interfaceCopy = {
     openLiveSite: 'Открыть сайт с актуальными заданиями',
   },
   zh: {
-    locale: 'zh-CN', documentLanguage: 'zh-CN', pageTitle: '学生门户', logoAlt: '标志',
+    locale: 'zh-CN', documentLanguage: 'zh-CN', pageTitle: '作业', logoAlt: '标志',
     openMenu: '打开菜单', closeMenu: '关闭菜单', menu: '菜单', navigation: '门户栏目',
     language: '语言', footer: '作业与课程表 · 地图开发中',
     sections: {
