@@ -1,11 +1,11 @@
-:root { font-family: Arial, Helvetica, sans-serif; color: #171717; background: #f5f5f0; color-scheme: light; }
+:root { --accent: #F56036; font-family: Arial, Helvetica, sans-serif; color: #171717; background: #f5f5f0; color-scheme: light; }
 :root:lang(zh-CN) { font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", Arial, sans-serif; }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; padding: 0 24px; }
 main { max-width: 1080px; margin: auto; padding-top: 24px; animation: page-enter 420ms cubic-bezier(.22, 1, .36, 1) both; }
 .site-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px; }
-.site-logo { display: block; width: 80px; height: auto; filter: brightness(0); }
+.site-logo { display: block; width: 32px; height: auto; }
 [hidden] { display: none !important; }
 .menu-toggle { width: 48px; height: 48px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 7px; padding: 0; background: transparent; border: 0; border-radius: 12px; }
 .menu-toggle span { width: 28px; height: 2px; background: currentColor; border-radius: 2px; transition: transform 220ms ease, width 220ms ease; }
@@ -48,6 +48,7 @@ h2 { font-size: clamp(30px, 5vw, 50px); letter-spacing: -.05em; margin: 0 0 14px
 .homework-card { border: 1px solid #c9c9c3; border-radius: 18px; padding: 20px; min-width: 0; animation: card-enter 360ms cubic-bezier(.22, 1, .36, 1) both; animation-delay: calc(var(--item-index, 0) * 45ms); }
 .homework-card h3 { margin: 0 0 14px; font-size: 21px; line-height: 1.2; letter-spacing: -.035em; overflow-wrap: anywhere; }
 .homework-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; font-size: 12px; }
+.homework-meta time strong { color: var(--accent); }
 .homework-card p { font-size: 14px; line-height: 1.6; margin: 16px 0 0; }
 .homework-next { border-top: 1px solid #c9c9c3; margin-top: 18px; padding-top: 14px; font-size: 12px; }
 .homework-next p { margin-top: 6px; color: #62625e; }
@@ -84,7 +85,7 @@ h2 { font-size: clamp(30px, 5vw, 50px); letter-spacing: -.05em; margin: 0 0 14px
 .lesson-list > .lesson:first-child { border-top: 0; }
 .lesson > div { min-width: 0; overflow-wrap: anywhere; }
 .lesson-topline { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.lesson-time { font-size: 14px; font-weight: 700; white-space: nowrap; }
+.lesson-time { color: var(--accent); font-size: 14px; font-weight: 700; white-space: nowrap; }
 .lesson h4 { margin: 12px 0 10px; font-size: 18px; letter-spacing: -.025em; line-height: 1.2; }
 .lesson-type { display: inline-block; border: 0; border-radius: 100px; padding: 5px 10px; background: #d8d8d2; color: #171717; font-size: 10px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
 .lesson-type--practice { background: #171717; color: #fff; }
