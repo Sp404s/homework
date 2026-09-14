@@ -62,7 +62,9 @@ const publicFiles = new Map([
   ['/', ['index.html', 'text/html']], ['/index.html', ['index.html', 'text/html']],
   ['/css/style.css', ['css/style.css', 'text/css']], ['/js/script.js', ['js/script.js', 'text/javascript']],
   ['/js/calendar.js', ['js/calendar.js', 'text/javascript']], ['/assets/logo.svg', ['assets/logo.svg', 'image/svg+xml']],
-  ['/assets/favicon.png', ['assets/favicon.png', 'image/png']], ['/site.webmanifest', ['site.webmanifest', 'application/manifest+json']],
+  ['/assets/favicon.png', ['assets/favicon.png', 'image/png']], ['/assets/icon-180.png', ['assets/icon-180.png', 'image/png']],
+  ['/assets/icon-192.png', ['assets/icon-192.png', 'image/png']], ['/assets/icon-512.png', ['assets/icon-512.png', 'image/png']],
+  ['/site.webmanifest', ['site.webmanifest', 'application/manifest+json']],
   ['/assets/chevron-down.svg', ['assets/chevron-down.svg', 'image/svg+xml']],
 ]);
 const port = Number(process.env.PORT || 3210);
