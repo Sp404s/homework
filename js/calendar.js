@@ -46,7 +46,9 @@ const StudentCalendar = (() => {
   }
   function nextDate(subject, anchor = defaultAnchor, now = new Date(), changes = []) {
     const start = typeof now === 'string' ? now : today(now);
-    for (let i = 0; i < 370; i++) {
+    // Срок нового задания — следующее занятие после текущего дня.
+    // Сегодняшнее занятие уже не должно становиться датой сдачи.
+    for (let i = 1; i <= 370; i++) {
       const date = addDays(start, i);
       if (lessonsOn(date, anchor, changes).some(l => canonical(l.subject) === canonical(subject))) return date;
     }

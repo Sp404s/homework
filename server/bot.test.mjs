@@ -44,6 +44,8 @@ assert.equal(saved.scheduleChanges.length, 1);
 assert.ok(!cal.lessonsOn('2026-09-15', state.weekAnchor, state.scheduleChanges).some(l => l.subject === 'Английский язык'));
 assert.equal(cal.lessonsOn('2026-09-16', state.weekAnchor, state.scheduleChanges)[0].time, '13:15–14:55');
 assert.equal(cal.nextDate('Английский язык', state.weekAnchor, '2026-09-13', state.scheduleChanges), '2026-09-16');
+// Если предмет есть сегодня, автоматический срок должен указывать уже следующее занятие.
+assert.equal(cal.nextDate('Компьютерные технологии в дизайне', state.weekAnchor, '2026-09-15', state.scheduleChanges), '2026-09-22');
 await msg('✏️ Изменить домашнее задание'); await click('subject', '0');
 assert.equal(pending().stage, 'textchoice'); assert.ok(sent.at(-1).text.includes('Старое задание'));
 await click('backsubject'); assert.equal(pending().stage, 'subject');

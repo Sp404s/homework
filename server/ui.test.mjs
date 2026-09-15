@@ -4,6 +4,7 @@ import calendar from '../js/calendar.js';
 
 assert.equal(calendar.weekFor('2026-09-14'), 'odd');
 assert.equal(calendar.weekFor('2026-09-21'), 'even');
+assert.equal(calendar.nextDate('Компьютерные технологии в дизайне', calendar.defaultAnchor, '2026-09-15'), '2026-09-22');
 for (const date of ['2026-09-15', '2026-09-22']) {
   const lesson = calendar.lessonsOn(date, calendar.defaultAnchor, []).find(item =>
     item.subject === 'Компьютерные технологии в дизайне' && item.type === 'Практика');
