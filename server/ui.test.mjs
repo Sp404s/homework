@@ -21,6 +21,14 @@ assert.match(script, /max\.ru\/join\/tzSWfIyCud01Ys7ThxuMoVsphrDH88xkv2a4zqLcC34
 assert.match(script, /vk\.me\/join\/\/oP7C7ks8FDfuEAl4y2w3YaQ5PxgJDsEXQs=/);
 assert.match(script, /1g6S19Z3uwTVmChxkFWDgujkYSo48vzDJGaQl70Jw0F0/);
 assert.match(script, /teacher-search/);
+assert.match(script, /assets\/community-max\.svg/);
+assert.match(script, /assets\/community-vk\.svg/);
+assert.match(script, /assets\/community-sheet\.svg/);
+assert.doesNotMatch(script, /service: 'TABLE'/);
 assert.doesNotMatch(script, /button\.dataset\.week/);
+
+for (const asset of ['community-max.svg', 'community-vk.svg', 'community-sheet.svg']) {
+  assert.match(await readFile(new URL(`../assets/${asset}`, import.meta.url), 'utf8'), /<svg/);
+}
 
 console.log('PASS: fixed week parity, communities, teacher search and corrected practice teacher');

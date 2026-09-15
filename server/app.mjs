@@ -73,6 +73,9 @@ const publicFiles = new Map([
   ['/assets/icon-192.png', ['assets/icon-192.png', 'image/png']], ['/assets/icon-512.png', ['assets/icon-512.png', 'image/png']],
   ['/site.webmanifest', ['site.webmanifest', 'application/manifest+json']],
   ['/assets/chevron-down.svg', ['assets/chevron-down.svg', 'image/svg+xml']],
+  ['/assets/community-max.svg', ['assets/community-max.svg', 'image/svg+xml']],
+  ['/assets/community-vk.svg', ['assets/community-vk.svg', 'image/svg+xml']],
+  ['/assets/community-sheet.svg', ['assets/community-sheet.svg', 'image/svg+xml']],
 ]);
 const port = Number(process.env.PORT || 3210);
 const settingsKey = randomBytes(24).toString('hex');

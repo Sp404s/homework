@@ -147,17 +147,17 @@ function element(tag, text, className) {
 
 const communities = [
   {
-    service: 'MAX', kind: 'max', title: 'Дизайн-мышление', titleZh: '设计思维',
+    icon: 'assets/community-max.svg', kind: 'max', title: 'Дизайн-мышление', titleZh: '设计思维',
     note: 'Группа предмета в MAX', noteZh: 'MAX 课程群组',
     url: 'https://max.ru/join/tzSWfIyCud01Ys7ThxuMoVsphrDH88xkv2a4zqLcC34',
   },
   {
-    service: 'VK', kind: 'vk', title: 'Теория дизайна', titleZh: '设计理论',
+    icon: 'assets/community-vk.svg', kind: 'vk', title: 'Теория дизайна', titleZh: '设计理论',
     note: 'Беседа предмета во ВКонтакте', noteZh: 'VK 课程群聊',
     url: 'https://vk.me/join//oP7C7ks8FDfuEAl4y2w3YaQ5PxgJDsEXQs=',
   },
   {
-    service: 'TABLE', kind: 'sheet', title: 'Таблица для записи', titleZh: '报名表',
+    icon: 'assets/community-sheet.svg', kind: 'sheet', title: 'Таблица для записи', titleZh: '报名表',
     note: 'Общая таблица Google Sheets', noteZh: 'Google Sheets 共享表格',
     url: 'https://docs.google.com/spreadsheets/d/1g6S19Z3uwTVmChxkFWDgujkYSo48vzDJGaQl70Jw0F0/edit?usp=sharing',
   },
@@ -224,8 +224,12 @@ function renderCommunities() {
     card.href = community.url;
     card.target = '_blank';
     card.rel = 'noopener noreferrer';
-    const mark = element('span', community.service, 'community-mark');
+    const mark = element('span', '', 'community-mark');
     mark.setAttribute('aria-hidden', 'true');
+    const icon = element('img');
+    icon.src = community.icon;
+    icon.alt = '';
+    mark.append(icon);
     const body = element('span', '', 'community-body');
     body.append(element('strong', localized(community, 'title')), element('span', localized(community, 'note')),
       element('span', community.kind === 'sheet' ? copy().openTable : copy().openCommunity, 'community-action'));
@@ -259,8 +263,17 @@ function renderTeachers() {
   const grid = element('div', '', 'teacher-grid');
   for (const teacher of matches) {
     const card = element('article', '', 'teacher-card');
-    const photo = element('div', teacherInitials(teacher.name), 'teacher-photo');
-    photo.setAttribute('aria-label', copy().photoLater);
+    const photo = element('div', '', 'teacher-photo');
+    if (teacher.photo) {
+      const image = element('img');
+      image.src = teacher.photo;
+      image.alt = localized(teacher, 'name');
+      image.loading = 'lazy';
+      photo.append(image);
+    } else {
+      photo.textContent = teacherInitials(teacher.name);
+      photo.setAttribute('aria-label', copy().photoLater);
+    }
     const info = element('div', '', 'teacher-info');
     info.append(element('h3', localized(teacher, 'name')), element('p', localized(teacher, 'role'), 'teacher-role'),
       element('p', localized(teacher, 'subjects'), 'teacher-subject'));
