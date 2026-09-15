@@ -96,7 +96,7 @@ export function validateState(input) {
   return {
     owner: input.owner ?? null,
     tasks: input.tasks,
-    weekAnchor: calendar.validAnchor(input.weekAnchor) ? input.weekAnchor : { ...calendar.defaultAnchor },
+    weekAnchor: { ...calendar.defaultAnchor },
     scheduleChanges: input.scheduleChanges,
     pending: input.pending || null,
     pendingByUser: validPendingByUser(input.pendingByUser),

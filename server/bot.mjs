@@ -16,6 +16,7 @@ export function createController({ state, save, telegram, translateTask = async 
   function btn(text, action, value = '') {
     return { text, callback_data: `w:${state.pending.nonce}:${action}:${value}` };
   }
+  const back = action => [btn('← Назад', action)];
   async function panel(chat, text, buttons, messageId) {
     const reply_markup = { inline_keyboard: [...buttons, [btn('Отмена · Главное меню', 'cancel')]] };
     if (messageId) return telegram('editMessageText', { chat_id: chat, message_id: messageId, text, parse_mode: 'HTML', reply_markup });
@@ -29,7 +30,8 @@ export function createController({ state, save, telegram, translateTask = async 
   function subjectPanel(chat, id) {
     const p = state.pending;
     p.stage = 'subject';
-    return panel(chat, 'Выберите предмет:', cal.subjects.map((s, i) => [btn(s, 'subject', String(i))]), id);
+    const backAction = p.kind === 'schedule' && p.operation === 'add' ? 'backlesson' : 'backmain';
+    return panel(chat, 'Выберите предмет:', [back(backAction), ...cal.subjects.map((s, i) => [btn(s, 'subject', String(i))])], id);
   }
   function calendarPanel(chat, purpose, month, id) {
     const p = state.pending;
@@ -50,7 +52,8 @@ export function createController({ state, save, telegram, translateTask = async 
     while (cells.length % 7) cells.push(btn('·', 'noop'));
     const buttons = [[btn('‹', 'month', cal.iso(prev).slice(0, 7)), btn(label, 'noop'), btn('›', 'month', cal.iso(next).slice(0, 7))],
       ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(s => btn(s, 'noop')), ...rows(cells, 7)];
-    if (purpose === 'due') buttons.unshift([btn('Автоматически по расписанию', 'auto')]);
+    buttons.unshift(back(purpose === 'source' ? 'backmain' : purpose === 'target' ? 'backaction' : 'backattachments'));
+    if (purpose === 'due') buttons.push([btn('Автоматически по расписанию', 'auto')]);
     const title = purpose === 'source' ? 'Выберите дату занятия, которое нужно изменить' : purpose === 'target' ? 'На какую дату перенести занятие?' : 'Выберите дату сдачи задания';
     return panel(chat, `<b>${title}</b>\n${p.subject ? esc(p.subject) : ''}`, buttons, id);
   }
@@ -62,21 +65,48 @@ export function createController({ state, save, telegram, translateTask = async 
       if ((change.sourceDate === date || (change.cancelled && change.date === date)) && !p.options.some(l => l.id === change.id)) p.options.push({ ...change, changed: true });
     }
     return panel(chat, `<b>${cal.format(date)}</b>\nВыберите занятие или добавьте новое.`, [
+      back('backsource'),
       ...p.options.map((l, i) => [btn(`${l.cancelled ? 'Отменено · ' : l.changed ? 'Изменено · ' : ''}${l.time} · ${l.subject} (${l.type})`, 'lesson', String(i))]),
-      [btn('＋ Добавить занятие', 'new')], [btn('Выбрать другую дату', 'source')],
+      [btn('＋ Добавить занятие', 'new')],
     ], id);
   }
   function lessonActions(chat, id) {
     const p = state.pending;
     p.stage = 'action';
-    const buttons = [[btn('Перенести / изменить время', 'move')], [btn('Отменить занятие', 'remove')]];
+    const buttons = [back('backlesson'), [btn('Перенести на другую дату', 'move')],
+      [btn('Изменить только время', 'changetime')], [btn('Отменить занятие', 'remove')]];
     if (p.lesson.changed) buttons.push([btn('Вернуть обычное расписание', 'restore')]);
     return panel(chat, `<b>${esc(p.subject)}</b>\n${cal.format(p.sourceDate)} · ${p.lesson.time}`, buttons, id);
   }
   function timePanel(chat, purpose, id) {
     const p = state.pending; p.stage = 'hour'; p.timePurpose = purpose;
     const buttons = rows(Array.from({ length: 24 }, (_, h) => btn(String(h).padStart(2, '0'), 'hour', String(h))), 6);
+    const backAction = purpose === 'end' ? 'backstarttime' : p.operation === 'move' ? 'backtarget' :
+      p.operation === 'add' ? 'backsubject' : 'backaction';
+    buttons.unshift(back(backAction));
     return panel(chat, purpose === 'end' ? 'Выберите час окончания занятия' : 'Выберите час начала занятия', buttons, id);
+  }
+
+  function homeworkTextPanel(chat, id) {
+    const p = state.pending;
+    p.stage = 'textchoice';
+    const existing = state.tasks.find(task => task.subject === p.subject);
+    const current = p.text || existing?.text;
+    const text = current ? `<b>${esc(p.subject)}</b>\n\n<b>Текущее задание:</b>\n${esc(current)}` :
+      `<b>${esc(p.subject)}</b>\n\nЗадание пока не добавлено.`;
+    const buttons = [back('backsubject')];
+    if (current) buttons.push([btn('Оставить этот текст', 'keep')]);
+    buttons.push([btn(current ? 'Изменить текст' : 'Добавить текст', 'edittext')]);
+    return panel(chat, text, buttons, id);
+  }
+
+  function homeworkTextPrompt(chat, id) {
+    const p = state.pending;
+    p.stage = 'text';
+    const current = p.text || state.tasks.find(task => task.subject === p.subject)?.text;
+    const currentText = current ? `\n\n<b>Сейчас написано:</b>\n${esc(current)}` : '';
+    return panel(chat, `<b>${esc(p.subject)}</b>${currentText}\n\nОтправьте новый текст задания сообщением.`,
+      [back('backhomeworktext')], id);
   }
   function attachmentLines(attachments = []) {
     return attachments.map((attachment, index) => {
@@ -89,7 +119,7 @@ export function createController({ state, save, telegram, translateTask = async 
     p.stage = 'attachments';
     if (!Array.isArray(p.attachments)) p.attachments = [];
     const current = p.attachments.length ? attachmentLines(p.attachments) : 'Вложений пока нет.';
-    const buttons = [[btn('🔗 Добавить ссылку', 'addlink')], [btn('📎 Добавить файл', 'addfile')]];
+    const buttons = [back('backhomeworktext'), [btn('🔗 Добавить ссылку', 'addlink')], [btn('📎 Добавить файл', 'addfile')]];
     for (let i = 0; i < p.attachments.length; i++) {
       buttons.push([btn(`Удалить ${i + 1}: ${p.attachments[i].name.slice(0, 24)}`, 'deleteattachment', String(i))]);
     }
@@ -101,7 +131,7 @@ export function createController({ state, save, telegram, translateTask = async 
     p.stage = kind;
     const instruction = kind === 'link' ? 'Отправьте ссылку, начинающуюся с http:// или https://.' :
       `Отправьте файл как документ или фотографию. Максимальный размер — ${MAX_FILE_BYTES / 1_000_000} МБ.`;
-    return panel(chat, `${error ? `${esc(error)}\n\n` : ''}${instruction}\nВложение будет публично доступно на сайте.`, [[btn('Назад к вложениям', 'attachments')]], id);
+    return panel(chat, `${error ? `${esc(error)}\n\n` : ''}${instruction}\nВложение будет публично доступно на сайте.`, [[btn('← Назад к вложениям', 'attachments')]], id);
   }
   function uploadedFile(message, count) {
     const document = message.document;
@@ -125,7 +155,7 @@ export function createController({ state, save, telegram, translateTask = async 
     } else {
       text = `<b>${esc(p.subject)}</b>\n` + (p.operation === 'cancel' ? `Отменить занятие ${cal.format(p.sourceDate)}?` : p.operation === 'restore' ? 'Убрать это изменение и вернуть обычное расписание?' : `${p.lesson ? 'Было: ' + cal.format(p.sourceDate) + ' · ' + p.lesson.time + '\n' : ''}Будет: ${cal.format(p.targetDate)} · ${p.start}–${p.end}`);
     }
-    return panel(chat, text + '\n\nСохранить изменения на сайте?', [[btn('✓ Сохранить', 'save')]], id);
+    return panel(chat, text + '\n\nСохранить изменения на сайте?', [back('backconfirm'), [btn('✓ Сохранить', 'save')]], id);
   }
   async function commit(chat, id) {
     const p = state.pending;
@@ -215,11 +245,30 @@ export function createController({ state, save, telegram, translateTask = async 
     const listMatch = cb.data?.match(/^list:(\d+)$/);
     if (listMatch) return list(chat, Number(listMatch[1]), msg.message_id);
     const match = cb.data?.match(/^w:([a-f0-9]+):([a-z]+):(.*)$/);
+    if (match && ['cancel', 'backmain'].includes(match[2])) {
+      state.pending = null;
+      try { await telegram('editMessageReplyMarkup', { chat_id: chat, message_id: msg.message_id, reply_markup: { inline_keyboard: [] } }); }
+      catch { /* Старое сообщение могло быть уже закрыто. */ }
+      return menu(chat);
+    }
     const p = state.pending;
     if (!match || !p || match[1] !== p.nonce) return send(chat, 'Это меню устарело. Выберите действие заново.');
     const [, , action, value] = match; const id = msg.message_id;
     if (action === 'noop') return;
-    if (action === 'cancel') { state.pending = null; return menu(chat); }
+    if (action === 'backsubject') return subjectPanel(chat, id);
+    if (action === 'backhomeworktext' && p.kind === 'homework') return homeworkTextPanel(chat, id);
+    if (action === 'backattachments' && p.kind === 'homework') return attachmentPanel(chat, id);
+    if (action === 'backsource' && p.kind === 'schedule') return calendarPanel(chat, 'source', p.sourceDate?.slice(0, 7), id);
+    if (action === 'backlesson' && p.kind === 'schedule' && cal.validDate(p.sourceDate)) return lessonPanel(chat, p.sourceDate, id);
+    if (action === 'backaction' && p.kind === 'schedule' && p.lesson) return lessonActions(chat, id);
+    if (action === 'backtarget' && p.kind === 'schedule') return calendarPanel(chat, 'target', p.sourceDate?.slice(0, 7), id);
+    if (action === 'backstarttime' && p.kind === 'schedule') return timePanel(chat, 'start', id);
+    if (action === 'backhour' && p.kind === 'schedule' && ['start', 'end'].includes(p.timePurpose)) return timePanel(chat, p.timePurpose, id);
+    if (action === 'backconfirm') {
+      if (p.kind === 'homework') return calendarPanel(chat, 'due', p.due?.slice(0, 7), id);
+      if (['cancel', 'restore'].includes(p.operation)) return lessonActions(chat, id);
+      return timePanel(chat, 'end', id);
+    }
     if (action === 'attachments' && p.kind === 'homework') return attachmentPanel(chat, id);
     if (action === 'addlink' && p.kind === 'homework' && p.stage === 'attachments') return attachmentPrompt(chat, 'link', id);
     if (action === 'addfile' && p.kind === 'homework' && p.stage === 'attachments') return attachmentPrompt(chat, 'file', id);
@@ -243,22 +292,28 @@ export function createController({ state, save, telegram, translateTask = async 
     if (action === 'subject' && p.stage === 'subject' && cal.subjects[Number(value)]) {
       p.subject = cal.subjects[Number(value)];
       if (p.kind === 'schedule') return timePanel(chat, 'start', id);
-      p.stage = 'text';
       const existing = state.tasks.find(t => t.subject === p.subject);
       p.attachments = structuredClone(existing?.attachments || []);
-      return panel(chat, `<b>${esc(p.subject)}</b>\nОтправьте новый текст задания.${existing ? '\nИли оставьте прежний текст и измените только срок.' : ''}`, existing ? [[btn('Оставить прежний текст', 'keep')]] : [], id);
+      delete p.text; delete p.next;
+      return homeworkTextPanel(chat, id);
     }
-    if (action === 'keep' && p.stage === 'text') {
+    if (action === 'edittext' && p.kind === 'homework' && p.stage === 'textchoice') return homeworkTextPrompt(chat, id);
+    if (action === 'keep' && p.stage === 'textchoice') {
       const existing = state.tasks.find(t => t.subject === p.subject);
-      if (existing) { p.text = existing.text; p.next = existing.next; return attachmentPanel(chat, id); }
+      if (p.text || existing) {
+        if (!p.text) { p.text = existing.text; p.next = existing.next; }
+        return attachmentPanel(chat, id);
+      }
     }
     if (action === 'auto' && p.stage === 'due') { delete p.due; delete p.dueTime; return confirm(chat, id); }
     if (action === 'move' && p.stage === 'action') { p.operation = 'move'; return calendarPanel(chat, 'target', p.sourceDate.slice(0, 7), id); }
+    if (action === 'changetime' && p.stage === 'action') { p.operation = 'time'; p.targetDate = p.sourceDate; return timePanel(chat, 'start', id); }
     if (action === 'remove' && p.stage === 'action') { p.operation = 'cancel'; return confirm(chat, id); }
     if (action === 'restore' && p.stage === 'action' && p.lesson.changed) { p.operation = 'restore'; return confirm(chat, id); }
     if (action === 'hour' && p.stage === 'hour' && /^\d+$/.test(value) && Number(value) < 24) {
       p.hour = Number(value); p.stage = 'minute';
-      return panel(chat, `Час: ${String(p.hour).padStart(2, '0')}. Выберите минуты:`, rows(Array.from({ length: 60 }, (_, m) => btn(String(m).padStart(2, '0'), 'minute', String(m))), 6), id);
+      return panel(chat, `Час: ${String(p.hour).padStart(2, '0')}. Выберите минуты:`,
+        [back('backhour'), ...rows(Array.from({ length: 60 }, (_, m) => btn(String(m).padStart(2, '0'), 'minute', String(m))), 6)], id);
     }
     if (action === 'minute' && p.stage === 'minute' && /^\d+$/.test(value) && Number(value) < 60) {
       const time = `${String(p.hour).padStart(2, '0')}:${value.padStart(2, '0')}`;

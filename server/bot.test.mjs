@@ -10,12 +10,20 @@ const bot = createController({ state, save: async () => { saved = JSON.parse(JSO
 const msg = (text, id = 42) => bot.handle({ message: { from: { id }, chat: { id, type: 'private' }, text } });
 const documentMsg = (document, id = 42) => bot.handle({ message: { from: { id }, chat: { id, type: 'private' }, document } });
 const pending = (id = 42) => state.pendingByUser[String(id)];
-const click = (action, value = '', id = 42) => bot.handle({ callback_query: { id: 'cb', from: { id }, message: { message_id: 9, chat: { id, type: 'private' } }, data: `w:${pending(id).nonce}:${action}:${value}` } });
+const rawClick = (data, id = 42) => bot.handle({ callback_query: { id: 'cb', from: { id }, message: { message_id: 9, chat: { id, type: 'private' } }, data } });
+const click = (action, value = '', id = 42) => rawClick(`w:${pending(id).nonce}:${action}:${value}`, id);
 assert.equal(keyboard.keyboard.length, 3);
+assert.equal(cal.weekFor('2026-09-14'), 'odd');
+assert.equal(cal.weekFor('2026-09-21'), 'even');
+assert.equal(cal.lessonsOn('2026-09-15', cal.defaultAnchor, []).find(lesson =>
+  lesson.subject === 'Компьютерные технологии в дизайне').teacher, 'Ченарани Сасан');
 await msg('📅 Изменить расписание', 99); assert.equal(pending(99).stage, 'source');
 await msg('✏️ Изменить домашнее задание'); assert.equal(pending().stage, 'subject');
 assert.equal(pending(99).stage, 'source');
+const cancelledNonce = pending().nonce;
 await msg('/cancel'); assert.equal(pending(), undefined);
+await rawClick(`w:${cancelledNonce}:cancel:`); assert.equal(pending(), undefined);
+assert.equal(sent.at(-1).text, 'Выберите действие кнопками ниже.');
 assert.equal(pending(99).stage, 'source');
 await msg('/cancel', 99); assert.equal(pending(99), undefined);
 await msg('📅 Изменить расписание');
@@ -23,6 +31,8 @@ assert.equal(pending().stage, 'source');
 await click('date', '2026-02-30'); assert.equal(pending().stage, 'source');
 await click('date', '2026-09-15');
 await click('lesson', '1'); // Английский, вторник нечётной недели.
+assert.ok(sent.at(-1).reply_markup.inline_keyboard.flat().some(button => button.text === 'Перенести на другую дату'));
+assert.ok(sent.at(-1).reply_markup.inline_keyboard.flat().some(button => button.text === 'Изменить только время'));
 await click('move'); await click('date', '2026-09-16');
 await click('hour', '13'); await click('minute', '15');
 await click('hour', '12'); await click('minute', '00'); // конец раньше начала не принимается
@@ -35,6 +45,9 @@ assert.ok(!cal.lessonsOn('2026-09-15', state.weekAnchor, state.scheduleChanges).
 assert.equal(cal.lessonsOn('2026-09-16', state.weekAnchor, state.scheduleChanges)[0].time, '13:15–14:55');
 assert.equal(cal.nextDate('Английский язык', state.weekAnchor, '2026-09-13', state.scheduleChanges), '2026-09-16');
 await msg('✏️ Изменить домашнее задание'); await click('subject', '0');
+assert.equal(pending().stage, 'textchoice'); assert.ok(sent.at(-1).text.includes('Старое задание'));
+await click('backsubject'); assert.equal(pending().stage, 'subject');
+await click('subject', '0'); await click('edittext'); assert.equal(pending().stage, 'text');
 await msg('Текст <статьи> & пересказ'); assert.equal(pending().stage, 'attachments');
 await click('addlink'); await msg('javascript:alert(1)');
 assert.equal(pending().stage, 'link'); assert.equal(pending().attachments.length, 0);
@@ -47,7 +60,11 @@ await documentMsg({ file_id: 'telegram_file_id_1', file_unique_id: 'unique_file_
 assert.equal(pending().stage, 'attachments'); assert.equal(pending().attachments.length, 2);
 await click('deleteattachment', '0'); assert.equal(pending().attachments.length, 1);
 await click('addlink'); await msg('https://example.com/article?a=1&b=2');
-await click('attachmentsdone'); await click('date', '2026-09-18');
+await click('attachmentsdone');
+const dueCalendar = sent.at(-1).reply_markup.inline_keyboard;
+assert.equal(dueCalendar[0][0].text, '← Назад');
+assert.equal(dueCalendar.at(-2)[0].text, 'Автоматически по расписанию');
+await click('date', '2026-09-18');
 assert.equal(pending().stage, 'confirm');
 await click('save');
 assert.equal(state.tasks[0].due, '2026-09-18'); assert.equal(state.tasks[0].dueTime, undefined);

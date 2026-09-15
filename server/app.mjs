@@ -21,7 +21,7 @@ catch (error) {
   state = { owner: null, offset: 0, tasks: JSON.parse(await readFile(path.join(root, 'server', 'seed.json'), 'utf8')) };
 }
 if (!Array.isArray(state.tasks)) throw new Error('Неверный формат базы заданий.');
-if (!calendar.validAnchor(state.weekAnchor)) state.weekAnchor = { ...calendar.defaultAnchor };
+state.weekAnchor = { ...calendar.defaultAnchor };
 if (!Array.isArray(state.scheduleChanges)) state.scheduleChanges = [];
 if (state.pending && !state.pending.kind) state.pending = null;
 if (!state.pendingByUser || typeof state.pendingByUser !== 'object' || Array.isArray(state.pendingByUser)) state.pendingByUser = {};

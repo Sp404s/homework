@@ -7,11 +7,13 @@ const interfaceCopy = {
   ru: {
     locale: 'ru-RU', documentLanguage: 'ru', pageTitle: 'Домашка', logoAlt: 'Логотип',
     openMenu: 'Открыть меню', closeMenu: 'Закрыть меню', menu: 'Меню', navigation: 'Разделы портала',
-    language: 'Язык', footer: 'Задания и расписание · Карта в разработке',
+    language: 'Язык', footer: 'Учёба, сообщества и преподаватели',
     sections: {
       homework: { title: 'Домашние задания', description: '' },
       map: { title: 'Карта', description: 'Здесь появится карта учебного заведения и расположение корпусов.' },
       schedule: { title: 'Расписание', description: '' },
+      communities: { title: 'Сообщества', description: 'Группы по предметам и общая таблица для записи.' },
+      teachers: { title: 'Преподаватели', description: 'Поиск по ФИО или названию предмета.' },
     },
     today: 'Сегодня', week: 'Неделя:', previousWeek: '‹ Неделя', currentWeek: 'Сегодня', nextWeek: 'Неделя ›',
     parityLabel: 'Чётность текущей недели', evenWeek: 'Чётная неделя', oddWeek: 'Нечётная неделя',
@@ -20,15 +22,19 @@ const interfaceCopy = {
     scheduleChange: 'Изменение расписания', cancelled: 'занятие отменено', movedTo: 'перенесено на',
     dueDate: 'Дата сдачи:', noDueLesson: 'нет занятия в расписании', further: 'В дальнейшем',
     openLiveSite: 'Открыть сайт с актуальными заданиями', attachments: 'Вложения', link: 'Ссылка', file: 'Файл',
+    openCommunity: 'Перейти в группу', openTable: 'Открыть таблицу', officialProfile: 'Профиль СПбПУ',
+    teacherSearch: 'ФИО или предмет', noTeachers: 'Ничего не найдено', photoLater: 'Фото позже',
   },
   zh: {
     locale: 'zh-CN', documentLanguage: 'zh-CN', pageTitle: '作业', logoAlt: '标志',
     openMenu: '打开菜单', closeMenu: '关闭菜单', menu: '菜单', navigation: '门户栏目',
-    language: '语言', footer: '作业与课程表 · 地图开发中',
+    language: '语言', footer: '学习、社群与教师',
     sections: {
       homework: { title: '家庭作业', description: '' },
       map: { title: '地图', description: '这里将显示校园地图和各教学楼的位置。' },
       schedule: { title: '课程表', description: '' },
+      communities: { title: '社群', description: '课程群组和报名表。' },
+      teachers: { title: '教师', description: '可按姓名或课程搜索。' },
     },
     today: '今天', week: '本周：', previousWeek: '‹ 上一周', currentWeek: '今天', nextWeek: '下一周 ›',
     parityLabel: '当前周单双周', evenWeek: '双周', oddWeek: '单周',
@@ -37,6 +43,8 @@ const interfaceCopy = {
     scheduleChange: '课程变更', cancelled: '课程已取消', movedTo: '改至',
     dueDate: '截止日期：', noDueLesson: '课程表中没有该课程', further: '后续任务',
     openLiveSite: '打开包含最新作业的网站', attachments: '附件', link: '链接', file: '文件',
+    openCommunity: '加入群组', openTable: '打开表格', officialProfile: 'SPbPU 主页',
+    teacherSearch: '姓名或课程', noTeachers: '未找到结果', photoLater: '照片稍后添加',
   },
 };
 
@@ -58,8 +66,10 @@ const chineseContent = {
     'Князева Елена Валерьевна': '克尼亚泽娃·叶莲娜·瓦列里耶芙娜',
     'Четина Мария Михайловна': '切季娜·玛丽亚·米哈伊洛芙娜',
     'Шур Семен Юрьевич': '舒尔·谢苗·尤里耶维奇',
+    'Ченарани Сасан': '萨桑·切纳拉尼',
     'Михайлова Алла Леонидовна': '米哈伊洛娃·阿拉·列昂尼多芙娜',
     'Зубов Андрей Генрихович': '祖博夫·安德烈·根里霍维奇',
+    'Зубов Андрей Гендрихович': '祖博夫·安德烈·根里霍维奇',
     'Киреев Артур Генрихович': '基列耶夫·阿尔图尔·根里霍维奇',
   },
   tasks: {
@@ -104,21 +114,8 @@ const description = document.querySelector('#section-description');
 const content = document.querySelector('#content');
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-function mondayDay(date) {
-  return StudentCalendar.mondayDay(date);
-}
-function readWeekOverride() {
-  try {
-    const value = JSON.parse(localStorage.getItem('student-week-override') || 'null');
-    return StudentCalendar.validAnchor(value) ? value : null;
-  } catch { return null; }
-}
-const isLocalServer = ['127.0.0.1', 'localhost'].includes(location.hostname);
-let localWeekOverride = readWeekOverride();
-// Сервер задаёт общую неделю, а публичный переключатель хранит личное уточнение только на устройстве посетителя.
-let weekAnchor = localWeekOverride || { ...StudentCalendar.defaultAnchor };
-let settingsKey = '';
-let weekSaving = false;
+// Чётность привязана к календарю: неделя 14–20 сентября 2026 года является нечётной.
+const weekAnchor = { ...StudentCalendar.defaultAnchor };
 function weekFor(date) {
   return StudentCalendar.weekFor(date, weekAnchor);
 }
@@ -131,11 +128,151 @@ const schedulePanel = document.createElement('div');
 schedulePanel.hidden = true;
 document.querySelector('#content').append(schedulePanel);
 
+const communitiesPanel = document.createElement('div');
+communitiesPanel.className = 'communities-panel';
+communitiesPanel.hidden = true;
+document.querySelector('#content').append(communitiesPanel);
+
+const teachersPanel = document.createElement('div');
+teachersPanel.className = 'teachers-panel';
+teachersPanel.hidden = true;
+document.querySelector('#content').append(teachersPanel);
+
 function element(tag, text, className) {
   const node = document.createElement(tag);
   if (text) node.textContent = text;
   if (className) node.className = className;
   return node;
+}
+
+const communities = [
+  {
+    service: 'MAX', kind: 'max', title: 'Дизайн-мышление', titleZh: '设计思维',
+    note: 'Группа предмета в MAX', noteZh: 'MAX 课程群组',
+    url: 'https://max.ru/join/tzSWfIyCud01Ys7ThxuMoVsphrDH88xkv2a4zqLcC34',
+  },
+  {
+    service: 'VK', kind: 'vk', title: 'Теория дизайна', titleZh: '设计理论',
+    note: 'Беседа предмета во ВКонтакте', noteZh: 'VK 课程群聊',
+    url: 'https://vk.me/join//oP7C7ks8FDfuEAl4y2w3YaQ5PxgJDsEXQs=',
+  },
+  {
+    service: 'TABLE', kind: 'sheet', title: 'Таблица для записи', titleZh: '报名表',
+    note: 'Общая таблица Google Sheets', noteZh: 'Google Sheets 共享表格',
+    url: 'https://docs.google.com/spreadsheets/d/1g6S19Z3uwTVmChxkFWDgujkYSo48vzDJGaQl70Jw0F0/edit?usp=sharing',
+  },
+];
+
+const teachers = [
+  {
+    name: 'Курочкина Анна Александровна', nameZh: '库罗奇金娜·安娜·亚历山德罗芙娜',
+    role: 'Профессор · Высшая школа сервиса и торговли', roleZh: '教授 · 服务与贸易高等学校',
+    subjects: 'История и методология науки', subjectsZh: '科学史与科学方法论',
+    profile: 'https://imet.spbstu.ru/person/kurochkina_anna_aleksandrovna/',
+  },
+  {
+    name: 'Князева Елена Валерьевна', nameZh: '克尼亚泽娃·叶莲娜·瓦列里耶芙娜',
+    role: 'Доцент · Высшая школа дизайна и архитектуры', roleZh: '副教授 · 设计与建筑高等学校',
+    subjects: 'Теория дизайна', subjectsZh: '设计理论',
+    profile: 'https://www.spbstu.ru/university/about-the-university/personalities/166756_knyazeva_elena_valerevna/',
+  },
+  {
+    name: 'Четина Мария Михайловна', nameZh: '切季娜·玛丽亚·米哈伊洛芙娜',
+    role: 'Доцент · Высшая школа лингвистики и педагогики', roleZh: '副教授 · 语言学与教育高等学校',
+    subjects: 'Английский язык', subjectsZh: '英语',
+    profile: 'https://hum.spbstu.ru/ling_asp/',
+  },
+  {
+    name: 'Ченарани Сасан', nameZh: '萨桑·切纳拉尼',
+    role: 'Ассистент · Высшая школа дизайна и архитектуры', roleZh: '助教 · 设计与建筑高等学校',
+    subjects: 'Компьютерные технологии в дизайне · практика', subjectsZh: '设计中的计算机技术 · 实践课',
+    profile: 'https://design.spbstu.ru/person/chenarani_sasan/',
+  },
+  {
+    name: 'Щур Семен Юрьевич', nameZh: '舒尔·谢苗·尤里耶维奇',
+    role: 'Доцент · Высшая школа дизайна и архитектуры', roleZh: '副教授 · 设计与建筑高等学校',
+    subjects: 'Компьютерные технологии в дизайне · лекция', subjectsZh: '设计中的计算机技术 · 讲座',
+    profile: 'https://ice.spbstu.ru/person/shur_semen_urevich/',
+  },
+  {
+    name: 'Зубов Андрей Гендрихович', nameZh: '祖博夫·安德烈·根里霍维奇',
+    role: 'Доцент · Высшая школа дизайна и архитектуры', roleZh: '副教授 · 设计与建筑高等学校',
+    subjects: 'Дизайн-проектирование и исследование', subjectsZh: '设计项目与研究',
+    profile: 'https://design.spbstu.ru/person/?paging=2',
+  },
+  {
+    name: 'Михайлова Алла Леонидовна', nameZh: '米哈伊洛娃·阿拉·列昂尼多芙娜',
+    role: 'Доцент · Высшая школа дизайна и архитектуры', roleZh: '副教授 · 设计与建筑高等学校',
+    subjects: 'Искусственный интеллект в отрасли', subjectsZh: '行业人工智能',
+    profile: 'https://design.spbstu.ru/person/?paging=7',
+  },
+  {
+    name: 'Киреев Артур Генрихович', nameZh: '基列耶夫·阿尔图尔·根里霍维奇',
+    role: 'Доцент · Высшая школа технологического предпринимательства', roleZh: '副教授 · 技术创业高等学校',
+    subjects: 'Дизайн-мышление', subjectsZh: '设计思维',
+    profile: 'https://gste.spbstu.ru/person/kireev_artur_genrihovich/',
+  },
+];
+
+const localized = (item, field) => language === 'zh' ? item[`${field}Zh`] || item[field] : item[field];
+
+function renderCommunities() {
+  communitiesPanel.replaceChildren();
+  const grid = element('div', '', 'community-grid');
+  for (const community of communities) {
+    const card = element('a', '', `community-card community-card--${community.kind}`);
+    card.href = community.url;
+    card.target = '_blank';
+    card.rel = 'noopener noreferrer';
+    const mark = element('span', community.service, 'community-mark');
+    mark.setAttribute('aria-hidden', 'true');
+    const body = element('span', '', 'community-body');
+    body.append(element('strong', localized(community, 'title')), element('span', localized(community, 'note')),
+      element('span', community.kind === 'sheet' ? copy().openTable : copy().openCommunity, 'community-action'));
+    card.append(mark, body, element('span', '↗', 'community-arrow'));
+    grid.append(card);
+  }
+  communitiesPanel.append(grid);
+}
+
+let teacherSearch = '';
+function teacherInitials(name) {
+  return name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+}
+function renderTeachers() {
+  teachersPanel.replaceChildren();
+  const search = element('input', '', 'teacher-search');
+  search.type = 'search';
+  search.value = teacherSearch;
+  search.placeholder = copy().teacherSearch;
+  search.setAttribute('aria-label', copy().teacherSearch);
+  search.autocomplete = 'off';
+  search.addEventListener('input', () => { teacherSearch = search.value; renderTeachers(); teachersPanel.querySelector('input').focus(); });
+  teachersPanel.append(search);
+  const query = teacherSearch.trim().toLocaleLowerCase(language === 'zh' ? 'zh-CN' : 'ru-RU');
+  const matches = teachers.filter(teacher => !query || [teacher.name, teacher.nameZh, teacher.role, teacher.roleZh,
+    teacher.subjects, teacher.subjectsZh].join(' ').toLocaleLowerCase().includes(query));
+  if (!matches.length) {
+    teachersPanel.append(element('p', copy().noTeachers, 'empty-search'));
+    return;
+  }
+  const grid = element('div', '', 'teacher-grid');
+  for (const teacher of matches) {
+    const card = element('article', '', 'teacher-card');
+    const photo = element('div', teacherInitials(teacher.name), 'teacher-photo');
+    photo.setAttribute('aria-label', copy().photoLater);
+    const info = element('div', '', 'teacher-info');
+    info.append(element('h3', localized(teacher, 'name')), element('p', localized(teacher, 'role'), 'teacher-role'),
+      element('p', localized(teacher, 'subjects'), 'teacher-subject'));
+    const profile = element('a', copy().officialProfile, 'teacher-profile');
+    profile.href = teacher.profile;
+    profile.target = '_blank';
+    profile.rel = 'noopener noreferrer';
+    info.append(profile);
+    card.append(photo, info);
+    grid.append(card);
+  }
+  teachersPanel.append(grid);
 }
 
 function setLessonListExpanded(list, toggle, expanded, animated = true) {
@@ -176,20 +313,6 @@ let homework = [
 ];
 const homeworkPanel = element('div', '', 'homework-panel');
 document.querySelector('#content').append(homeworkPanel);
-
-async function persistWeek(anchor) {
-  if (location.protocol === 'file:') throw new Error('Откройте сайт через сервер');
-  if (!isLocalServer) {
-    localWeekOverride = anchor;
-    localStorage.setItem('student-week-override', JSON.stringify(anchor));
-    return;
-  }
-  const response = await fetch('/api/week', { method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Settings-Key': settingsKey },
-    body: JSON.stringify(anchor), signal: AbortSignal.timeout(8000) });
-  if (!response.ok) throw new Error('Неделя не сохранена');
-}
-
 
 function daysUntil(due, now = new Date()) {
   const [year, month, day] = due.split('-').map(Number);
@@ -294,39 +417,9 @@ function renderSchedule() {
     weekNav.append(button);
   }
   schedulePanel.append(weekNav);
-  const switcher = element('div', '', 'week-switcher');
-  switcher.setAttribute('role', 'group');
-  switcher.setAttribute('aria-label', copy().parityLabel);
-  for (const [key, label] of [['even', copy().evenWeek], ['odd', copy().oddWeek]]) {
-    const button = element('button', label);
-    button.type = 'button';
-    button.dataset.week = key;
-    button.setAttribute('aria-pressed', String(selectedWeek === key));
-    button.addEventListener('click', async () => {
-      if (weekSaving) return;
-      weekSaving = true;
-      try {
-        // Получаем свежий ключ даже после перезапуска сервера.
-        if (location.protocol !== 'file:') {
-          const response = await fetch('/api/homework', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
-          if (!response.ok) throw new Error('Нет сервера');
-          settingsKey = (await response.json()).settingsKey || '';
-        }
-        const anchor = { monday: mondayDay(monday), parity: key, confirmed: true };
-        await persistWeek(anchor);
-        weekAnchor = anchor;
-        renderSchedule();
-        renderHomework();
-        schedulePanel.querySelector(`[data-week="${key}"]`).focus();
-      } catch {
-        const notice = element('p', copy().saveError, 'week-range');
-        notice.setAttribute('role', 'alert');
-        schedulePanel.prepend(notice);
-      } finally { weekSaving = false; }
-    });
-    switcher.append(button);
-  }
-  schedulePanel.append(switcher);
+  const parityBadge = element('p', selectedWeek === 'even' ? copy().evenWeek : copy().oddWeek, 'week-parity-badge');
+  parityBadge.setAttribute('aria-label', copy().parityLabel);
+  schedulePanel.append(parityBadge);
   const days = schedule[selectedWeek].map((day, index) => {
     const date = StudentCalendar.addDays(`${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`, index);
     return { ...day, lessons: StudentCalendar.lessonsOn(date, weekAnchor, scheduleChanges), dateKey: date };
@@ -476,6 +569,8 @@ function applyLanguage(nextLanguage) {
   description.hidden = !section.description;
   renderHomework();
   renderSchedule();
+  renderCommunities();
+  renderTeachers();
 }
 
 document.querySelectorAll('[data-language]').forEach((button) => {
@@ -505,6 +600,8 @@ async function switchSection(button) {
   description.hidden = !section.description;
   schedulePanel.hidden = key !== 'schedule';
   homeworkPanel.hidden = key !== 'homework';
+  communitiesPanel.hidden = key !== 'communities';
+  teachersPanel.hidden = key !== 'teachers';
   buttons.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
   if (!reducedMotion.matches && typeof content.animate === 'function') {
     const incoming = content.animate([
@@ -527,24 +624,16 @@ buttons.forEach((button) => {
 // Токен бота не используется в браузере: он остаётся в серверном процессе.
 let syncingHomework = false;
 async function syncHomework() {
-  if (location.protocol === 'file:' || syncingHomework || weekSaving) return;
+  if (location.protocol === 'file:' || syncingHomework) return;
   syncingHomework = true;
   try {
     const response = await fetch('/api/homework', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
     if (!response.ok) throw new Error('API unavailable');
     const data = await response.json();
-    if (weekSaving) return;
-    settingsKey = data.settingsKey || settingsKey;
     const receivedChanges = Array.isArray(data.scheduleChanges) ? data.scheduleChanges : [];
     const changesChanged = JSON.stringify(scheduleChanges) !== JSON.stringify(receivedChanges);
     scheduleChanges = receivedChanges;
-    let anchorChanged = false;
-    if (StudentCalendar.validAnchor(data.weekAnchor)) {
-      const receivedAnchor = localWeekOverride || data.weekAnchor;
-      anchorChanged = JSON.stringify(weekAnchor) !== JSON.stringify(receivedAnchor);
-      weekAnchor = receivedAnchor;
-      if (anchorChanged || changesChanged) renderSchedule();
-    }
+    if (changesChanged) renderSchedule();
     const knownSubjects = new Set(Object.values(schedule).flatMap((days) => days.flatMap((day) => day.lessons.map((item) => item.subject))));
     knownSubjects.add('Английский язык');
     knownSubjects.add('ИИ в отрасли');
@@ -556,7 +645,7 @@ async function syncHomework() {
       (task.textZh === undefined || (typeof task.textZh === 'string' && task.textZh.length <= 8000)) &&
       (task.nextZh === undefined || (typeof task.nextZh === 'string' && task.nextZh.length <= 8000)) &&
       (task.attachments === undefined || (Array.isArray(task.attachments) && task.attachments.length <= 10 && task.attachments.every(validAttachment))))) throw new Error('Invalid data');
-    if (anchorChanged || changesChanged || JSON.stringify(homework) !== JSON.stringify(data.tasks)) {
+    if (changesChanged || JSON.stringify(homework) !== JSON.stringify(data.tasks)) {
       homework = data.tasks;
       renderHomework();
     }
