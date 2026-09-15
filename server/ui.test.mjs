@@ -17,6 +17,7 @@ assert.match(index, /data-section="communities"/);
 assert.match(index, /data-section="teachers"/);
 
 const script = await readFile(new URL('../js/script.js', import.meta.url), 'utf8');
+const css = await readFile(new URL('../css/style.css', import.meta.url), 'utf8');
 assert.match(script, /max\.ru\/join\/tzSWfIyCud01Ys7ThxuMoVsphrDH88xkv2a4zqLcC34/);
 assert.match(script, /vk\.me\/join\/\/oP7C7ks8FDfuEAl4y2w3YaQ5PxgJDsEXQs=/);
 assert.match(script, /1g6S19Z3uwTVmChxkFWDgujkYSo48vzDJGaQl70Jw0F0/);
@@ -26,6 +27,10 @@ assert.match(script, /assets\/community-vk\.svg/);
 assert.match(script, /assets\/community-sheet\.svg/);
 assert.doesNotMatch(script, /service: 'TABLE'/);
 assert.doesNotMatch(script, /button\.dataset\.week/);
+assert.match(css, /\.menu-panel \{[^}]*height: 100dvh;[^}]*overflow: hidden;/s);
+assert.match(css, /\.menu-panel\[open\] \{[^}]*display: flex;[^}]*flex-direction: column;/s);
+assert.match(css, /\.language-switcher \{[^}]*flex: 0 0 auto;[^}]*margin: auto auto 0;/s);
+assert.match(css, /@keyframes menu-enter \{ from \{ transform: translateY\(-100%\);/);
 
 for (const asset of ['community-max.svg', 'community-vk.svg', 'community-sheet.svg']) {
   assert.match(await readFile(new URL(`../assets/${asset}`, import.meta.url), 'utf8'), /<svg/);
