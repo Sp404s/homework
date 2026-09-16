@@ -10,7 +10,6 @@ const interfaceCopy = {
     language: 'Язык', footer: 'Учёба, сообщества и преподаватели',
     sections: {
       homework: { title: 'Домашние задания', description: '' },
-      map: { title: 'Карта', description: 'Здесь появится карта учебного заведения и расположение корпусов.' },
       schedule: { title: 'Расписание', description: '' },
       communities: { title: 'Сообщества', description: 'Группы по предметам и общая таблица для записи.' },
       teachers: { title: 'Преподаватели', description: 'Поиск по ФИО или названию предмета.' },
@@ -38,7 +37,6 @@ const interfaceCopy = {
     language: '语言', footer: '学习、社群与教师',
     sections: {
       homework: { title: '家庭作业', description: '' },
-      map: { title: '地图', description: '这里将显示校园地图和各教学楼的位置。' },
       schedule: { title: '课程表', description: '' },
       communities: { title: '社群', description: '课程群组和报名表。' },
       teachers: { title: '教师', description: '可按姓名或课程搜索。' },
@@ -262,41 +260,50 @@ function renderTeachers() {
   search.placeholder = copy().teacherSearch;
   search.setAttribute('aria-label', copy().teacherSearch);
   search.autocomplete = 'off';
-  search.addEventListener('input', () => { teacherSearch = search.value; renderTeachers(); teachersPanel.querySelector('input').focus(); });
-  teachersPanel.append(search);
-  const query = teacherSearch.trim().toLocaleLowerCase(language === 'zh' ? 'zh-CN' : 'ru-RU');
-  const matches = teachers.filter(teacher => !query || [teacher.name, teacher.nameZh, teacher.role, teacher.roleZh,
-    teacher.subjects, teacher.subjectsZh].join(' ').toLocaleLowerCase().includes(query));
-  if (!matches.length) {
-    teachersPanel.append(element('p', copy().noTeachers, 'empty-search'));
-    return;
-  }
-  const grid = element('div', '', 'teacher-grid');
-  for (const teacher of matches) {
-    const card = element('article', '', 'teacher-card');
-    const photo = element('div', '', 'teacher-photo');
-    if (teacher.photo) {
-      const image = element('img');
-      image.src = teacher.photo;
-      image.alt = localized(teacher, 'name');
-      image.loading = 'lazy';
-      photo.append(image);
-    } else {
-      photo.textContent = teacherInitials(teacher.name);
-      photo.setAttribute('aria-label', copy().photoLater);
+  search.setAttribute('autocapitalize', 'none');
+  search.setAttribute('autocorrect', 'off');
+  search.setAttribute('inputmode', 'search');
+  search.spellcheck = false;
+  const results = element('div', '', 'teacher-results');
+  const renderResults = () => {
+    results.replaceChildren();
+    const query = teacherSearch.trim().toLocaleLowerCase(language === 'zh' ? 'zh-CN' : 'ru-RU');
+    const matches = teachers.filter(teacher => !query || [teacher.name, teacher.nameZh, teacher.role, teacher.roleZh,
+      teacher.subjects, teacher.subjectsZh].join(' ').toLocaleLowerCase().includes(query));
+    if (!matches.length) {
+      results.append(element('p', copy().noTeachers, 'empty-search'));
+      return;
     }
-    const info = element('div', '', 'teacher-info');
-    info.append(element('h3', localized(teacher, 'name')), element('p', localized(teacher, 'role'), 'teacher-role'),
-      element('p', localized(teacher, 'subjects'), 'teacher-subject'));
-    const profile = element('a', copy().officialProfile, 'teacher-profile');
-    profile.href = teacher.profile;
-    profile.target = '_blank';
-    profile.rel = 'noopener noreferrer';
-    info.append(profile);
-    card.append(photo, info);
-    grid.append(card);
-  }
-  teachersPanel.append(grid);
+    const grid = element('div', '', 'teacher-grid');
+    for (const teacher of matches) {
+      const card = element('article', '', 'teacher-card');
+      const photo = element('div', '', 'teacher-photo');
+      if (teacher.photo) {
+        const image = element('img');
+        image.src = teacher.photo;
+        image.alt = localized(teacher, 'name');
+        image.loading = 'lazy';
+        photo.append(image);
+      } else {
+        photo.textContent = teacherInitials(teacher.name);
+        photo.setAttribute('aria-label', copy().photoLater);
+      }
+      const info = element('div', '', 'teacher-info');
+      info.append(element('h3', localized(teacher, 'name')), element('p', localized(teacher, 'role'), 'teacher-role'),
+        element('p', localized(teacher, 'subjects'), 'teacher-subject'));
+      const profile = element('a', copy().officialProfile, 'teacher-profile');
+      profile.href = teacher.profile;
+      profile.target = '_blank';
+      profile.rel = 'noopener noreferrer';
+      info.append(profile);
+      card.append(photo, info);
+      grid.append(card);
+    }
+    results.append(grid);
+  };
+  search.addEventListener('input', () => { teacherSearch = search.value; renderResults(); });
+  teachersPanel.append(search, results);
+  renderResults();
 }
 
 function setLessonListExpanded(list, toggle, expanded, animated = true) {

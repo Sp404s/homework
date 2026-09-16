@@ -12,9 +12,10 @@ for (const date of ['2026-09-15', '2026-09-22']) {
 }
 
 const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-assert.equal((index.match(/data-section=/g) || []).length, 5);
+assert.equal((index.match(/data-section=/g) || []).length, 4);
 assert.match(index, /data-section="communities"/);
 assert.match(index, /data-section="teachers"/);
+assert.doesNotMatch(index, /data-section="map"/);
 
 const script = await readFile(new URL('../js/script.js', import.meta.url), 'utf8');
 const css = await readFile(new URL('../css/style.css', import.meta.url), 'utf8');
@@ -22,6 +23,9 @@ assert.match(script, /max\.ru\/join\/tzSWfIyCud01Ys7ThxuMoVsphrDH88xkv2a4zqLcC34
 assert.match(script, /vk\.me\/join\/\/oP7C7ks8FDfuEAl4y2w3YaQ5PxgJDsEXQs=/);
 assert.match(script, /1g6S19Z3uwTVmChxkFWDgujkYSo48vzDJGaQl70Jw0F0/);
 assert.match(script, /teacher-search/);
+assert.match(script, /autocapitalize', 'none'/);
+assert.match(script, /autocorrect', 'off'/);
+assert.doesNotMatch(script, /map: \{ title:/);
 assert.match(script, /assets\/community-max\.svg/);
 assert.match(script, /assets\/community-vk\.svg/);
 assert.match(script, /assets\/community-sheet\.svg/);
@@ -39,6 +43,7 @@ assert.match(css, /@keyframes menu-enter \{ from \{ transform: translateY\(-100%
 assert.match(css, /\.history-filter/);
 assert.match(css, /\.history-subject/);
 assert.match(css, /\.history-subject-toggle\[aria-expanded="true"\]/);
+assert.match(css, /button\.history-subject-toggle:not\(:disabled\):active \{ transform: none; \}/);
 assert.match(css, /\.history-entry/);
 
 for (const asset of ['community-max.svg', 'community-vk.svg', 'community-sheet.svg']) {
