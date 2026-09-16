@@ -70,6 +70,7 @@ await click('date', '2026-09-18');
 assert.equal(pending().stage, 'confirm');
 await click('save');
 assert.equal(state.tasks[0].due, '2026-09-18'); assert.equal(state.tasks[0].dueTime, undefined);
+assert.equal(state.history.length, 1); assert.equal(state.history[0].due, '2026-09-18');
 assert.equal(state.tasks[0].textZh, '中文：Текст <статьи> & пересказ');
 assert.equal(state.tasks[0].attachments.length, 2); assert.ok(state.tasks[0].attachments.some(item => item.name === 'Статья.pdf'));
 assert.equal(cal.taskDate(state.tasks[0], state.weekAnchor, state.scheduleChanges, new Date('2026-09-20T12:00:00Z')), '2026-09-18');
@@ -88,9 +89,23 @@ await click('hour', '10'); await click('minute', '00'); await click('hour', '11'
 assert.equal(cal.lessonsOn('2026-09-19', state.weekAnchor, state.scheduleChanges)[0].subject, 'Теория дизайна');
 await msg('✏️ Изменить домашнее задание'); await click('subject', '0'); await click('keep');
 assert.equal(pending().attachments.length, 2); await click('attachmentsdone'); await click('auto'); await click('save');
-assert.equal(state.tasks[0].due, undefined);
+assert.equal(state.tasks[0].due, '2026-09-15');
+assert.equal(state.history.length, 1); assert.equal(state.history[0].due, '2026-09-15');
 assert.equal(cal.nextDate('История и методология науки', state.weekAnchor, '2026-09-13'), '2026-09-21');
 for (const packet of sent) {
   for (const row of packet.reply_markup?.inline_keyboard || []) for (const button of row) assert.ok(Buffer.byteLength(button.callback_data) <= 64);
 }
+
+const expiredState = {
+  owner: null,
+  tasks: [{ subject: 'Английский язык', text: 'Прошедшее задание', due: '2026-09-15' }],
+  history: [{ subject: 'Английский язык', text: 'Прошедшее задание', due: '2026-09-15' }],
+  weekAnchor: { ...cal.defaultAnchor }, scheduleChanges: [], pending: null, pendingByUser: {},
+};
+const expiredSent = [];
+const expiredBot = createController({ state: expiredState, save: async () => {}, now: () => new Date('2026-09-16T12:00:00Z'),
+  telegram: async (method, body) => { expiredSent.push({ method, ...body }); return {}; } });
+await expiredBot.handle({ message: { from: { id: 7 }, chat: { id: 7, type: 'private' }, text: '📋 Посмотреть список заданного' } });
+assert.ok(expiredSent.at(-1).text.includes('Задание пока не добавлено'));
+assert.ok(!expiredSent.at(-1).text.includes('Прошедшее задание'));
 console.log('PASS: buttons, multi-user dialogs, schedule editing, deadlines, translation, attachments and callback sizes');

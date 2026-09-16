@@ -19,7 +19,10 @@ export async function GET(request) {
     if (!calendar.subjects.includes(subject) || !/^\d{1,2}$/.test(indexText)) return json({ error: 'invalid_attachment' }, 400);
     const index = Number(indexText);
     const state = await loadState();
-    const attachment = state.tasks.find(task => task.subject === subject)?.attachments?.[index];
+    const attachment = [...state.tasks, ...state.history]
+      .filter(task => task.subject === subject)
+      .map(task => task.attachments?.[index])
+      .find(item => item?.type === 'file' && item.uniqueId === key);
     if (!attachment || attachment.type !== 'file' || attachment.uniqueId !== key || attachment.size > MAX_FILE_BYTES) {
       return json({ error: 'attachment_not_found' }, 404);
     }

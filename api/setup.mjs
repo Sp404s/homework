@@ -35,6 +35,7 @@ export async function POST(request) {
     if (!state.webhookActive && body.snapshot) {
       const snapshot = validatePublicSnapshot(body.snapshot);
       state.tasks = snapshot.tasks;
+      state.history = snapshot.history;
       state.weekAnchor = snapshot.weekAnchor;
       state.scheduleChanges = snapshot.scheduleChanges;
     }

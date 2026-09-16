@@ -7,10 +7,14 @@ import { translateTasks } from './_translation.mjs';
 export async function GET() {
   try {
     const state = await loadState();
-    const tasks = await translateTasks(publicTasks(state.tasks));
+    const [tasks, history] = await Promise.all([
+      translateTasks(publicTasks(state.tasks)),
+      translateTasks(publicTasks(state.history)),
+    ]);
     return json({
-      version: 6,
+      version: 7,
       tasks,
+      history,
       scheduleChanges: state.scheduleChanges,
       weekAnchor: state.weekAnchor,
       botConnected: Boolean(state.webhookActive),

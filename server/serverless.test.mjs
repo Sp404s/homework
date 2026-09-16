@@ -83,20 +83,26 @@ const state = await loadState();
 const unsafeState = structuredClone(state);
 unsafeState.tasks[0].attachments = [{ type: 'link', name: 'bad', url: 'javascript:alert(1)' }];
 assert.throws(() => validateState(unsafeState), /invalid_tasks/);
+const unsafeHistory = structuredClone(state);
+unsafeHistory.history = [{ subject: 'Неизвестный предмет', text: 'bad', due: '2026-09-18' }];
+assert.throws(() => validateState(unsafeHistory), /invalid_history/);
 state.tasks[0].attachments = [
   { type: 'link', name: 'example.com', url: 'https://example.com/article' },
   { type: 'file', name: 'Статья.pdf', fileId: 'telegram_file_id_1', uniqueId: 'unique_file_1', size: 4, mimeType: 'application/pdf' },
 ];
+state.history[0] = structuredClone(state.tasks[0]);
 await saveState(state);
 
 const apiResponse = await homework();
 assert.equal(apiResponse.status, 200);
 const apiData = await apiResponse.json();
-assert.equal(apiData.version, 6);
+assert.equal(apiData.version, 7);
 assert.equal(apiData.botConnected, true);
 assert.equal('settingsKey' in apiData, false);
 assert.equal(apiData.tasks.length, 5);
+assert.equal(apiData.history.length, 5);
 assert.ok(apiData.tasks[0].textZh.startsWith('中文：'));
+assert.ok(apiData.history[0].textZh.startsWith('中文：'));
 assert.equal(apiData.tasks[0].attachments[0].url, 'https://example.com/article');
 assert.ok(apiData.tasks[0].attachments[1].url.startsWith('/api/file?'));
 assert.equal('fileId' in apiData.tasks[0].attachments[1], false);
@@ -112,6 +118,12 @@ assert.equal(fileResponse.status, 200);
 assert.equal(fileResponse.headers.get('content-type'), 'application/octet-stream');
 assert.ok(fileResponse.headers.get('content-disposition').includes("filename*=UTF-8''"));
 assert.deepEqual([...new Uint8Array(await fileResponse.arrayBuffer())], [37, 80, 68, 70]);
+
+// Файл остаётся доступен из журнала, даже когда актуальное задание уже заменено.
+state.tasks[0].attachments = [];
+await saveState(state);
+const archivedFileResponse = await fileDownload(new Request(new URL(apiData.tasks[0].attachments[1].url, 'https://homework.example.test')));
+assert.equal(archivedFileResponse.status, 200);
 
 const healthResponse = await health();
 const healthData = await healthResponse.json();

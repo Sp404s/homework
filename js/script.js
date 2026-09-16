@@ -24,6 +24,10 @@ const interfaceCopy = {
     openLiveSite: 'Открыть сайт с актуальными заданиями', attachments: 'Вложения', link: 'Ссылка', file: 'Файл',
     openCommunity: 'Перейти в группу', openTable: 'Открыть таблицу', officialProfile: 'Профиль СПбПУ',
     teacherSearch: 'ФИО или предмет', noTeachers: 'Ничего не найдено', photoLater: 'Фото позже',
+    openJournal: 'Журнал домашних заданий', journalTitle: 'Журнал домашних заданий',
+    journalDescription: 'Все сохранённые задания, сгруппированные по предметам.', backToHomework: '← Актуальные задания',
+    historyDate: 'Дата сдачи', clearDate: 'Сбросить', noHistory: 'В журнале пока нет заданий.',
+    noHistoryDate: 'На выбранную дату заданий нет.', noActiveHomework: 'Актуальных заданий нет.',
   },
   zh: {
     locale: 'zh-CN', documentLanguage: 'zh-CN', pageTitle: '作业', logoAlt: '标志',
@@ -45,6 +49,9 @@ const interfaceCopy = {
     openLiveSite: '打开包含最新作业的网站', attachments: '附件', link: '链接', file: '文件',
     openCommunity: '加入群组', openTable: '打开表格', officialProfile: 'SPbPU 主页',
     teacherSearch: '姓名或课程', noTeachers: '未找到结果', photoLater: '照片稍后添加',
+    openJournal: '作业记录', journalTitle: '作业记录', journalDescription: '所有已保存的作业，按课程分组。',
+    backToHomework: '← 当前作业', historyDate: '截止日期', clearDate: '清除', noHistory: '记录中还没有作业。',
+    noHistoryDate: '所选日期没有作业。', noActiveHomework: '目前没有待完成的作业。',
   },
 };
 
@@ -326,6 +333,9 @@ let homework = [
 ];
 const homeworkPanel = element('div', '', 'homework-panel');
 document.querySelector('#content').append(homeworkPanel);
+let homeworkHistory = [];
+let homeworkMode = 'current';
+let historyDateFilter = '';
 
 function daysUntil(due, now = new Date()) {
   const [year, month, day] = due.split('-').map(Number);
@@ -360,9 +370,80 @@ function appendHomeworkAttachments(card, task) {
   }
   if (list.children.length) { block.append(list); card.append(block); }
 }
-function renderHomework() {
+function homeworkToolbar(label, onClick, className = '') {
+  const toolbar = element('div', '', 'homework-toolbar');
+  const button = element('button', label, className);
+  button.type = 'button';
+  button.addEventListener('click', onClick);
+  toolbar.append(button);
+  return toolbar;
+}
+function updateHomeworkHeading() {
+  const homeworkButton = document.querySelector('[data-section="homework"]');
+  if (homeworkButton?.getAttribute('aria-pressed') !== 'true') return;
+  title.textContent = homeworkMode === 'journal' ? copy().journalTitle : copy().sections.homework.title;
+  description.textContent = homeworkMode === 'journal' ? copy().journalDescription : copy().sections.homework.description;
+  description.hidden = !description.textContent;
+}
+function appendHomeworkContent(card, task) {
+  card.append(element('p', translatedTask(task)));
+  if (task.next) {
+    const next = element('div', '', 'homework-next');
+    next.append(element('strong', copy().further), element('p', translatedTask(task, 'next')));
+    card.append(next);
+  }
+  appendHomeworkAttachments(card, task);
+}
+function renderHomeworkJournal() {
+  homeworkPanel.append(homeworkToolbar(copy().backToHomework, () => {
+    homeworkMode = 'current';
+    renderHomework();
+  }, 'journal-back'));
+  const filter = element('div', '', 'history-filter');
+  const label = element('label', copy().historyDate);
+  label.htmlFor = 'history-date';
+  const input = element('input');
+  input.type = 'date'; input.id = 'history-date'; input.value = historyDateFilter;
+  input.addEventListener('change', () => { historyDateFilter = input.value; renderHomework(); });
+  const clear = element('button', copy().clearDate);
+  clear.type = 'button'; clear.disabled = !historyDateFilter;
+  clear.addEventListener('click', () => { historyDateFilter = ''; renderHomework(); });
+  filter.append(label, input, clear);
+  homeworkPanel.append(filter);
+
+  const filtered = homeworkHistory.filter(task => !historyDateFilter || task.due === historyDateFilter);
+  if (!filtered.length) {
+    homeworkPanel.append(element('p', historyDateFilter ? copy().noHistoryDate : copy().noHistory, 'history-empty'));
+    return;
+  }
+  const groups = element('div', '', 'history-groups');
+  for (const subject of StudentCalendar.subjects) {
+    const entries = filtered.filter(task => task.subject === subject)
+      .sort((a, b) => (b.due || '').localeCompare(a.due || ''));
+    if (!entries.length) continue;
+    const group = element('section', '', 'history-subject');
+    group.append(element('h3', translated('subjects', subject)));
+    const list = element('div', '', 'history-entries');
+    for (const task of entries) {
+      const card = element('article', '', 'history-entry');
+      const date = element('time', task.due ? formattedDateKey(task.due) : copy().noDueLesson);
+      if (task.due) date.dateTime = task.due;
+      card.append(date);
+      appendHomeworkContent(card, task);
+      list.append(card);
+    }
+    group.append(list); groups.append(group);
+  }
+  homeworkPanel.append(groups);
+}
+function renderHomeworkCurrent() {
   homeworkPanel.replaceChildren();
   const today = new Date();
+  const todayKey = StudentCalendar.today(today);
+  homeworkPanel.append(homeworkToolbar(copy().openJournal, () => {
+    homeworkMode = 'journal';
+    renderHomework();
+  }, 'journal-open'));
   homeworkPanel.append(element('p', `${copy().today} ${formattedDate(today, {
     day: 'numeric', month: 'long', year: 'numeric',
   })}`, 'today-label'));
@@ -373,13 +454,14 @@ function renderHomework() {
   }
   const cards = element('div', '', 'homework-list');
   homework.map((task) => ({ ...task, due: StudentCalendar.taskDate(task, weekAnchor, scheduleChanges, today) }))
+    .filter(task => !task.due || task.due >= todayKey)
     .sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).forEach((task, index) => {
     if (!task.due) {
       const card = element('article', '', 'homework-card');
       card.style.setProperty('--item-index', index);
       card.append(element('h3', translated('subjects', task.subject)),
-        element('p', `${copy().dueDate} ${copy().noDueLesson}`), element('p', translatedTask(task)));
-      appendHomeworkAttachments(card, task);
+        element('p', `${copy().dueDate} ${copy().noDueLesson}`));
+      appendHomeworkContent(card, task);
       cards.append(card);
       return;
     }
@@ -394,16 +476,18 @@ function renderHomework() {
     deadline.append(element('strong', formattedDate(date)));
     deadline.dateTime = task.due;
     meta.append(element('span', copy().dueDate), deadline);
-    card.append(element('h3', translated('subjects', task.subject)), meta, element('p', translatedTask(task)));
-    if (task.next) {
-      const next = element('div', '', 'homework-next');
-      next.append(element('strong', copy().further), element('p', translatedTask(task, 'next')));
-      card.append(next);
-    }
-    appendHomeworkAttachments(card, task);
+    card.append(element('h3', translated('subjects', task.subject)), meta);
+    appendHomeworkContent(card, task);
     cards.append(card);
   });
+  if (!cards.children.length) cards.append(element('p', copy().noActiveHomework, 'history-empty'));
   homeworkPanel.append(cards);
+}
+function renderHomework() {
+  homeworkPanel.replaceChildren();
+  updateHomeworkHeading();
+  if (homeworkMode === 'journal') renderHomeworkJournal();
+  else renderHomeworkCurrent();
 }
 renderHomework();
 
@@ -616,6 +700,7 @@ async function switchSection(button) {
   communitiesPanel.hidden = key !== 'communities';
   teachersPanel.hidden = key !== 'teachers';
   buttons.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+  if (key === 'homework') updateHomeworkHeading();
   if (!reducedMotion.matches && typeof content.animate === 'function') {
     const incoming = content.animate([
       { opacity: 0, transform: 'translateY(10px)' },
@@ -652,14 +737,20 @@ async function syncHomework() {
     knownSubjects.add('ИИ в отрасли');
     const validAttachment = attachment => attachment && ['link', 'file'].includes(attachment.type) &&
       typeof attachment.name === 'string' && attachment.name.length > 0 && attachment.name.length <= 180 && safeAttachmentUrl(attachment);
-    if (!Array.isArray(data.tasks) || data.tasks.length > 50 || !data.tasks.every((task) =>
+    const validTask = task =>
       task && knownSubjects.has(task.subject) && typeof task.text === 'string' && task.text.length <= 4000 &&
       (task.next === undefined || (typeof task.next === 'string' && task.next.length <= 4000)) &&
       (task.textZh === undefined || (typeof task.textZh === 'string' && task.textZh.length <= 8000)) &&
       (task.nextZh === undefined || (typeof task.nextZh === 'string' && task.nextZh.length <= 8000)) &&
-      (task.attachments === undefined || (Array.isArray(task.attachments) && task.attachments.length <= 10 && task.attachments.every(validAttachment))))) throw new Error('Invalid data');
-    if (changesChanged || JSON.stringify(homework) !== JSON.stringify(data.tasks)) {
+      (task.due === undefined || StudentCalendar.validDate(task.due)) &&
+      (task.attachments === undefined || (Array.isArray(task.attachments) && task.attachments.length <= 10 && task.attachments.every(validAttachment)));
+    if (!Array.isArray(data.tasks) || data.tasks.length > 50 || !data.tasks.every(validTask)) throw new Error('Invalid data');
+    const receivedHistory = Array.isArray(data.history) ? data.history : data.tasks;
+    if (receivedHistory.length > 200 || !receivedHistory.every(validTask)) throw new Error('Invalid history');
+    const historyChanged = JSON.stringify(homeworkHistory) !== JSON.stringify(receivedHistory);
+    if (changesChanged || historyChanged || JSON.stringify(homework) !== JSON.stringify(data.tasks)) {
       homework = data.tasks;
+      homeworkHistory = receivedHistory;
       renderHomework();
     }
   } catch { /* Оставляем последнюю загруженную версию без служебной надписи. */ }

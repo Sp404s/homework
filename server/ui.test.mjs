@@ -25,15 +25,21 @@ assert.match(script, /teacher-search/);
 assert.match(script, /assets\/community-max\.svg/);
 assert.match(script, /assets\/community-vk\.svg/);
 assert.match(script, /assets\/community-sheet\.svg/);
+assert.match(script, /function renderHomeworkJournal\(\)/);
+assert.match(script, /task\.due >= todayKey/);
+assert.match(script, /receivedHistory = Array\.isArray\(data\.history\)/);
 assert.doesNotMatch(script, /service: 'TABLE'/);
 assert.doesNotMatch(script, /button\.dataset\.week/);
 assert.match(css, /\.menu-panel \{[^}]*height: 100dvh;[^}]*overflow: hidden;/s);
 assert.match(css, /\.menu-panel\[open\] \{[^}]*display: flex;[^}]*flex-direction: column;/s);
 assert.match(css, /\.language-switcher \{[^}]*flex: 0 0 auto;[^}]*margin: auto auto 0;/s);
 assert.match(css, /@keyframes menu-enter \{ from \{ transform: translateY\(-100%\);/);
+assert.match(css, /\.history-filter/);
+assert.match(css, /\.history-subject/);
+assert.match(css, /\.history-entry/);
 
 for (const asset of ['community-max.svg', 'community-vk.svg', 'community-sheet.svg']) {
   assert.match(await readFile(new URL(`../assets/${asset}`, import.meta.url), 'utf8'), /<svg/);
 }
 
-console.log('PASS: fixed week parity, communities, teacher search and corrected practice teacher');
+console.log('PASS: fixed week parity, homework journal, communities, teacher search and corrected practice teacher');

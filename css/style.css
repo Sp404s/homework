@@ -44,6 +44,22 @@ button[aria-pressed="true"] { background: #171717; color: #f5f5f0; }
 h2 { font-size: clamp(30px, 5vw, 50px); letter-spacing: -.05em; margin: 0 0 14px; }
 #section-description { max-width: 550px; font-size: 14px; line-height: 1.5; color: #62625e; }
 .today-label { margin: 28px 0 6px; font-size: 17px; font-weight: 700; }
+.homework-toolbar { display: flex; justify-content: flex-end; margin: 0 0 20px; }
+.homework-toolbar button, .history-filter button { min-height: 44px; padding: 10px 16px; border: 1px solid #171717; border-radius: 100px; background: transparent; font-size: 13px; font-weight: 700; }
+.homework-toolbar .journal-open { background: #171717; color: #f5f5f0; }
+.homework-toolbar .journal-back { margin-right: auto; }
+.history-filter { display: grid; grid-template-columns: auto minmax(180px, 260px) auto; align-items: center; gap: 10px; margin: 22px 0 28px; padding: 16px; border: 1px solid #c9c9c3; border-radius: 18px; }
+.history-filter label { font-size: 13px; font-weight: 700; }
+.history-filter input { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid #171717; border-radius: 12px; background: transparent; color: inherit; font: inherit; }
+.history-filter button:disabled { opacity: .35; cursor: default; }
+.history-groups { display: grid; gap: 30px; }
+.history-subject > h3 { margin: 0 0 12px; font-size: 24px; line-height: 1.2; letter-spacing: -.04em; }
+.history-entries { display: grid; gap: 10px; }
+.history-entry { padding: 18px; border: 1px solid #c9c9c3; border-radius: 18px; }
+.history-entry > time { display: block; color: var(--accent); font-size: 13px; font-weight: 700; }
+.history-entry > p { margin: 12px 0 0; font-size: 14px; line-height: 1.6; }
+.history-entry .homework-next, .history-entry .homework-attachments { margin-top: 14px; padding-top: 12px; }
+.history-empty { margin: 24px 0; color: #62625e; font-size: 14px; }
 .homework-list { display: grid; gap: 14px; margin-top: 20px; }
 .homework-card { border: 1px solid #c9c9c3; border-radius: 18px; padding: 20px; min-width: 0; animation: card-enter 360ms cubic-bezier(.22, 1, .36, 1) both; animation-delay: calc(var(--item-index, 0) * 45ms); }
 .homework-card h3 { margin: 0 0 14px; font-size: 21px; line-height: 1.2; letter-spacing: -.035em; overflow-wrap: anywhere; }
@@ -143,6 +159,11 @@ footer { border-top: 1px solid; padding: 20px 0 28px; font-size: 11px; color: #6
   body { padding: 0 18px; }
   nav button { min-height: 64px; padding: 12px 8px; font-size: 12px; }
   #content { padding-top: 28px; }
+  .homework-toolbar { justify-content: stretch; }
+  .homework-toolbar button { width: 100%; }
+  .history-filter { grid-template-columns: 1fr auto; }
+  .history-filter label { grid-column: 1 / -1; }
+  .history-subject > h3 { font-size: 21px; }
   .day-name { font-size: 19px; }
   .day-toggle { padding: 16px 10px; gap: 8px; }
   .week-switcher button { flex: 1; padding: 10px 8px; font-size: 12px; }

@@ -11,6 +11,11 @@ const esc = s => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').repl
 const rows = (values, n) => Array.from({ length: Math.ceil(values.length / n) }, (_, i) => values.slice(i * n, (i + 1) * n));
 
 export function createController({ state, save, telegram, translateTask = async task => task, now = () => new Date() }) {
+  const taskDue = task => task ? cal.taskDate(task, state.weekAnchor, state.scheduleChanges, now()) : null;
+  const activeTask = subject => state.tasks.find(task => task.subject === subject && taskDue(task) >= cal.today(now()));
+  if (!Array.isArray(state.history)) {
+    state.history = state.tasks.map(task => ({ ...structuredClone(task), ...(taskDue(task) ? { due: taskDue(task) } : {}) }));
+  }
   const send = (chat, text, extra = {}) => telegram('sendMessage', { chat_id: chat, text, parse_mode: 'HTML', reply_markup: keyboard, ...extra });
   const menu = chat => send(chat, 'Выберите действие кнопками ниже.');
   function btn(text, action, value = '') {
@@ -90,7 +95,7 @@ export function createController({ state, save, telegram, translateTask = async 
   function homeworkTextPanel(chat, id) {
     const p = state.pending;
     p.stage = 'textchoice';
-    const existing = state.tasks.find(task => task.subject === p.subject);
+    const existing = activeTask(p.subject);
     const current = p.text || existing?.text;
     const text = current ? `<b>${esc(p.subject)}</b>\n\n<b>Текущее задание:</b>\n${esc(current)}` :
       `<b>${esc(p.subject)}</b>\n\nЗадание пока не добавлено.`;
@@ -103,7 +108,7 @@ export function createController({ state, save, telegram, translateTask = async 
   function homeworkTextPrompt(chat, id) {
     const p = state.pending;
     p.stage = 'text';
-    const current = p.text || state.tasks.find(task => task.subject === p.subject)?.text;
+    const current = p.text || activeTask(p.subject)?.text;
     const currentText = current ? `\n\n<b>Сейчас написано:</b>\n${esc(current)}` : '';
     return panel(chat, `<b>${esc(p.subject)}</b>${currentText}\n\nОтправьте новый текст задания сообщением.`,
       [back('backhomeworktext')], id);
@@ -151,7 +156,7 @@ export function createController({ state, save, telegram, translateTask = async 
     if (p.kind === 'homework') {
       const date = cal.taskDate(p, state.weekAnchor, state.scheduleChanges, now());
       const attachmentText = p.attachments?.length ? `\n\n<b>Вложения:</b>\n${attachmentLines(p.attachments)}` : '';
-      text = `<b>${esc(p.subject)}</b> (${cal.format(date)})\n\n${esc(p.text)}${attachmentText}\n\n${p.due ? 'Дата выбрана вручную.' : 'Дата будет автоматически следовать расписанию.'}`;
+      text = `<b>${esc(p.subject)}</b> (${cal.format(date)})\n\n${esc(p.text)}${attachmentText}\n\n${p.autoDue ? 'Дата рассчитана по следующему занятию.' : 'Дата выбрана вручную.'}`;
     } else {
       text = `<b>${esc(p.subject)}</b>\n` + (p.operation === 'cancel' ? `Отменить занятие ${cal.format(p.sourceDate)}?` : p.operation === 'restore' ? 'Убрать это изменение и вернуть обычное расписание?' : `${p.lesson ? 'Было: ' + cal.format(p.sourceDate) + ' · ' + p.lesson.time + '\n' : ''}Будет: ${cal.format(p.targetDate)} · ${p.start}–${p.end}`);
     }
@@ -161,10 +166,37 @@ export function createController({ state, save, telegram, translateTask = async 
     const p = state.pending;
     if (p.stage !== 'confirm') return;
     const oldTasks = state.tasks;
+    const oldHistory = state.history;
     const oldChanges = state.scheduleChanges;
     if (p.kind === 'homework') {
-      const task = await translateTask({ subject: p.subject, text: p.text, ...(p.next ? { next: p.next } : {}), ...(p.due ? { due: p.due } : {}),
+      const due = p.due || cal.nextDate(p.subject, state.weekAnchor, now(), state.scheduleChanges);
+      const task = await translateTask({ subject: p.subject, text: p.text, ...(p.next ? { next: p.next } : {}), ...(due ? { due } : {}),
         ...(p.attachments?.length ? { attachments: structuredClone(p.attachments) } : {}) });
+      const previous = activeTask(p.subject);
+      const previousDue = taskDue(previous);
+      state.history = Array.isArray(state.history) ? [...state.history] : [];
+      if (previous) {
+        let previousIndex = -1;
+        for (let index = state.history.length - 1; index >= 0; index -= 1) {
+          const item = state.history[index];
+          if (item.subject === previous.subject && item.text === previous.text && (item.next || '') === (previous.next || '')) {
+            previousIndex = index;
+            break;
+          }
+        }
+        if (previousIndex < 0) {
+          for (let index = state.history.length - 1; index >= 0; index -= 1) {
+            const item = state.history[index];
+            if (item.subject === previous.subject && taskDue(item) === previousDue) {
+              previousIndex = index;
+              break;
+            }
+          }
+        }
+        if (previousIndex >= 0) state.history.splice(previousIndex, 1);
+      }
+      state.history.push(structuredClone(task));
+      state.history = state.history.slice(-200);
       state.tasks = [...state.tasks.filter(t => t.subject !== p.subject), task];
     } else {
       const l = p.lesson;
@@ -178,16 +210,16 @@ export function createController({ state, save, telegram, translateTask = async 
       });
     }
     state.pending = null;
-    try { await save(); } catch (e) { state.tasks = oldTasks; state.scheduleChanges = oldChanges; state.pending = p; throw e; }
+    try { await save(); } catch (e) { state.tasks = oldTasks; state.history = oldHistory; state.scheduleChanges = oldChanges; state.pending = p; throw e; }
     if (id) await telegram('editMessageReplyMarkup', { chat_id: chat, message_id: id, reply_markup: { inline_keyboard: [] } });
     return send(chat, 'Сохранено. Открытый сайт обновится в течение 5 секунд.');
   }
   function pages() {
     const out = []; let page = '<b>Список заданного</b>\n\n';
     for (const subject of cal.subjects) {
-      const task = state.tasks.find(t => t.subject === subject);
-      const due = cal.taskDate(task || { subject }, state.weekAnchor, state.scheduleChanges, now());
-      const title = `<b>${esc(subject)}</b> (${cal.format(due)})`;
+      const task = activeTask(subject);
+      const due = taskDue(task);
+      const title = `<b>${esc(subject)}</b>${due ? ` (${cal.format(due)})` : ''}`;
       const attachments = task?.attachments?.length ? '\nВложения:\n' + task.attachments.map((attachment, index) =>
         `${index + 1}. ${attachment.type === 'link' ? 'Ссылка' : 'Файл'}: ${attachment.name}` +
         (attachment.type === 'link' ? `\n${attachment.url}` : '')).join('\n') : '';
@@ -285,27 +317,31 @@ export function createController({ state, save, telegram, translateTask = async 
     if (action === 'date' && cal.validDate(value)) {
       if (p.stage === 'source') return lessonPanel(chat, value, id);
       if (p.stage === 'target') { p.targetDate = value; return timePanel(chat, 'start', id); }
-      if (p.stage === 'due') { p.due = value; delete p.dueTime; return confirm(chat, id); }
+      if (p.stage === 'due') { p.due = value; delete p.autoDue; delete p.dueTime; return confirm(chat, id); }
     }
     if (action === 'lesson' && p.stage === 'lesson' && p.options[Number(value)]) { p.lesson = p.options[Number(value)]; p.subject = p.lesson.subject; return lessonActions(chat, id); }
     if (action === 'new' && p.stage === 'lesson') { p.targetDate = p.sourceDate; p.operation = 'add'; return subjectPanel(chat, id); }
     if (action === 'subject' && p.stage === 'subject' && cal.subjects[Number(value)]) {
       p.subject = cal.subjects[Number(value)];
       if (p.kind === 'schedule') return timePanel(chat, 'start', id);
-      const existing = state.tasks.find(t => t.subject === p.subject);
+      const existing = activeTask(p.subject);
       p.attachments = structuredClone(existing?.attachments || []);
       delete p.text; delete p.next;
       return homeworkTextPanel(chat, id);
     }
     if (action === 'edittext' && p.kind === 'homework' && p.stage === 'textchoice') return homeworkTextPrompt(chat, id);
     if (action === 'keep' && p.stage === 'textchoice') {
-      const existing = state.tasks.find(t => t.subject === p.subject);
+      const existing = activeTask(p.subject);
       if (p.text || existing) {
         if (!p.text) { p.text = existing.text; p.next = existing.next; }
         return attachmentPanel(chat, id);
       }
     }
-    if (action === 'auto' && p.stage === 'due') { delete p.due; delete p.dueTime; return confirm(chat, id); }
+    if (action === 'auto' && p.stage === 'due') {
+      p.due = cal.nextDate(p.subject, state.weekAnchor, now(), state.scheduleChanges);
+      p.autoDue = true; delete p.dueTime;
+      return confirm(chat, id);
+    }
     if (action === 'move' && p.stage === 'action') { p.operation = 'move'; return calendarPanel(chat, 'target', p.sourceDate.slice(0, 7), id); }
     if (action === 'changetime' && p.stage === 'action') { p.operation = 'time'; p.targetDate = p.sourceDate; return timePanel(chat, 'start', id); }
     if (action === 'remove' && p.stage === 'action') { p.operation = 'cancel'; return confirm(chat, id); }

@@ -23,6 +23,13 @@ catch (error) {
 if (!Array.isArray(state.tasks)) throw new Error('Неверный формат базы заданий.');
 state.weekAnchor = { ...calendar.defaultAnchor };
 if (!Array.isArray(state.scheduleChanges)) state.scheduleChanges = [];
+const materializeTask = task => {
+  if (calendar.validDate(task.due)) return { ...task };
+  const due = calendar.nextDate(task.subject, state.weekAnchor, new Date(), state.scheduleChanges);
+  return due ? { ...task, due } : { ...task };
+};
+state.tasks = state.tasks.map(materializeTask);
+state.history = (Array.isArray(state.history) ? state.history : state.tasks).map(materializeTask).slice(-200);
 if (state.pending && !state.pending.kind) state.pending = null;
 if (!state.pendingByUser || typeof state.pendingByUser !== 'object' || Array.isArray(state.pendingByUser)) state.pendingByUser = {};
 let queue = Promise.resolve();
@@ -98,8 +105,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method !== 'GET') { res.writeHead(405); return res.end(); }
     if (pathname === '/api/homework') {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      const tasks = await translateTasks(publicTasks(state.tasks));
-      return res.end(JSON.stringify({ version: 6, tasks, scheduleChanges: state.scheduleChanges, weekAnchor: state.weekAnchor, settingsKey,
+      const [tasks, history] = await Promise.all([translateTasks(publicTasks(state.tasks)), translateTasks(publicTasks(state.history))]);
+      return res.end(JSON.stringify({ version: 7, tasks, history, scheduleChanges: state.scheduleChanges, weekAnchor: state.weekAnchor, settingsKey,
         botConnected: connected && Date.now() - lastSuccess < 70000, botStatus: status, today: calendar.today() }));
     }
     if (pathname === '/api/file') {
@@ -107,7 +114,10 @@ const server = http.createServer(async (req, res) => {
       const indexText = requestUrl.searchParams.get('index') || '';
       const key = requestUrl.searchParams.get('key') || '';
       if (!calendar.subjects.includes(subject) || !/^\d{1,2}$/.test(indexText)) { res.writeHead(400); return res.end('Invalid attachment'); }
-      const attachment = state.tasks.find(task => task.subject === subject)?.attachments?.[Number(indexText)];
+      const attachment = [...state.tasks, ...state.history]
+        .filter(task => task.subject === subject)
+        .map(task => task.attachments?.[Number(indexText)])
+        .find(item => item?.type === 'file' && item.uniqueId === key);
       if (!attachment || attachment.type !== 'file' || attachment.uniqueId !== key || attachment.size > MAX_FILE_BYTES) {
         res.writeHead(404); return res.end('Attachment not found');
       }

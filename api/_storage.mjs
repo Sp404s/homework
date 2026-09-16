@@ -34,6 +34,22 @@ function validTask(task) {
     (task.attachments === undefined || (Array.isArray(task.attachments) && task.attachments.length <= MAX_ATTACHMENTS && task.attachments.every(validAttachment)));
 }
 
+function materializeTask(task, anchor, changes, now = new Date()) {
+  if (calendar.validDate(task.due)) return { ...task };
+  const due = calendar.nextDate(task.subject, anchor, now, changes);
+  return due ? { ...task, due } : { ...task };
+}
+
+function normalizeHistory(history, tasks, anchor, changes) {
+  const source = Array.isArray(history) ? history : tasks;
+  const unique = new Map();
+  for (const item of source.map(task => materializeTask(task, anchor, changes))) {
+    const key = `${item.subject}\u0000${item.due || ''}\u0000${item.text}`;
+    unique.set(key, item);
+  }
+  return [...unique.values()].slice(-200);
+}
+
 function translationKey(source) {
   return `${stateKey}:translation:zh:${createHash('sha256').update(source).digest('hex')}`;
 }
@@ -75,9 +91,11 @@ function validPendingByUser(value) {
 }
 
 export function freshState() {
+  const tasks = structuredClone(seed).map(task => materializeTask(task, calendar.defaultAnchor, []));
   return {
     owner: null,
-    tasks: structuredClone(seed),
+    tasks,
+    history: structuredClone(tasks),
     weekAnchor: { ...calendar.defaultAnchor },
     scheduleChanges: [],
     pending: null,
@@ -91,12 +109,16 @@ export function validateState(input) {
   if (!input || typeof input !== 'object') throw new Error('invalid_state');
   if (!Array.isArray(input.tasks) || input.tasks.length > calendar.subjects.length || !input.tasks.every(validTask)) throw new Error('invalid_tasks');
   if (!Array.isArray(input.scheduleChanges) || input.scheduleChanges.length > 200 || !input.scheduleChanges.every(validChange)) throw new Error('invalid_changes');
+  if (input.history !== undefined && (!Array.isArray(input.history) || input.history.length > 200 || !input.history.every(validTask))) throw new Error('invalid_history');
   if (input.owner !== null && (!Number.isSafeInteger(input.owner) || input.owner <= 0)) throw new Error('invalid_owner');
   if (input.pending !== null && input.pending !== undefined && (typeof input.pending !== 'object' || JSON.stringify(input.pending).length > 50000)) throw new Error('invalid_pending');
+  const weekAnchor = { ...calendar.defaultAnchor };
+  const tasks = input.tasks.map(task => materializeTask(task, weekAnchor, input.scheduleChanges));
   return {
     owner: input.owner ?? null,
-    tasks: input.tasks,
-    weekAnchor: { ...calendar.defaultAnchor },
+    tasks,
+    history: normalizeHistory(input.history, tasks, weekAnchor, input.scheduleChanges),
+    weekAnchor,
     scheduleChanges: input.scheduleChanges,
     pending: input.pending || null,
     pendingByUser: validPendingByUser(input.pendingByUser),
@@ -112,20 +134,27 @@ export function validatePublicSnapshot(input) {
   const checked = validateState({
     owner: null,
     tasks: input.tasks,
+    history: input.history,
     weekAnchor: input.weekAnchor,
     scheduleChanges: input.scheduleChanges,
     pending: null,
     lastUpdateId: -1,
     webhookActive: false,
   });
-  return { tasks: checked.tasks, weekAnchor: checked.weekAnchor, scheduleChanges: checked.scheduleChanges };
+  return { tasks: checked.tasks, history: checked.history, weekAnchor: checked.weekAnchor, scheduleChanges: checked.scheduleChanges };
 }
 
 export async function loadState() {
   const stored = await command(['GET', stateKey]);
   if (stored !== null && stored !== undefined) {
     const parsed = typeof stored === 'string' ? JSON.parse(stored) : stored;
-    return validateState(parsed);
+    const clean = validateState(parsed);
+    // Persist one-time schema migrations (for example history and fixed due dates),
+    // otherwise a legacy automatic deadline would move again on every request.
+    if (JSON.stringify(clean) !== JSON.stringify(parsed)) {
+      await command(['SET', stateKey, JSON.stringify(clean)]);
+    }
+    return clean;
   }
   const initial = freshState();
   const created = await command(['SET', stateKey, JSON.stringify(initial), 'NX']);
@@ -137,7 +166,7 @@ export async function loadState() {
 export async function saveState(state) {
   const clean = validateState(state);
   const encoded = JSON.stringify(clean);
-  if (encoded.length > 250000) throw new Error('state_too_large');
+  if (encoded.length > 900000) throw new Error('state_too_large');
   await command(['SET', stateKey, encoded]);
   return clean;
 }
