@@ -52,10 +52,21 @@ h2 { font-size: clamp(30px, 5vw, 50px); letter-spacing: -.05em; margin: 0 0 14px
 .history-filter label { font-size: 13px; font-weight: 700; }
 .history-filter input { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid #171717; border-radius: 12px; background: transparent; color: inherit; font: inherit; }
 .history-filter button:disabled { opacity: .35; cursor: default; }
-.history-groups { display: grid; gap: 30px; }
-.history-subject > h3 { margin: 0 0 12px; font-size: 24px; line-height: 1.2; letter-spacing: -.04em; }
-.history-entries { display: grid; gap: 10px; }
-.history-entry { padding: 18px; border: 1px solid #c9c9c3; border-radius: 18px; }
+.history-groups { display: grid; gap: 10px; }
+.history-subject { overflow: hidden; border: 1px solid #c9c9c3; border-radius: 18px; }
+.history-subject > h3 { margin: 0; }
+.history-subject-toggle { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; width: 100%; min-height: 88px; padding: 18px 14px; border: 0; background: transparent; text-align: left; }
+.history-subject-toggle:active { transform: none; }
+.history-subject-label { display: contents; }
+.history-subject-name { grid-column: 1; grid-row: 1; font-size: 21px; font-weight: 700; letter-spacing: -.04em; line-height: 1.2; }
+.history-subject-meta { grid-column: 1; grid-row: 2; font-size: 12px; font-weight: 400; }
+.history-subject-status { grid-column: 2; grid-row: 1; justify-self: end; font-size: 11px; font-weight: 400; white-space: nowrap; }
+.history-subject-toggle .day-arrow { grid-column: 2; grid-row: 2; }
+.history-subject-toggle[aria-expanded="true"] .day-arrow::before { transform: rotate(180deg); }
+.history-subject-toggle:focus-visible { outline-offset: -4px; }
+.history-entries { padding: 0 14px; overflow: hidden; transform-origin: top; }
+.history-entry { padding: 20px 0; border-top: 1px solid #c9c9c3; }
+.history-entries > .history-entry:first-child { border-top: 0; }
 .history-entry > time { display: block; color: var(--accent); font-size: 13px; font-weight: 700; }
 .history-entry > p { margin: 12px 0 0; font-size: 14px; line-height: 1.6; }
 .history-entry .homework-next, .history-entry .homework-attachments { margin-top: 14px; padding-top: 12px; }
@@ -163,7 +174,8 @@ footer { border-top: 1px solid; padding: 20px 0 28px; font-size: 11px; color: #6
   .homework-toolbar button { width: 100%; }
   .history-filter { grid-template-columns: 1fr auto; }
   .history-filter label { grid-column: 1 / -1; }
-  .history-subject > h3 { font-size: 21px; }
+  .history-subject-toggle { padding: 16px 10px; gap: 8px; }
+  .history-subject-name { font-size: 19px; }
   .day-name { font-size: 19px; }
   .day-toggle { padding: 16px 10px; gap: 8px; }
   .week-switcher button { flex: 1; padding: 10px 8px; font-size: 12px; }

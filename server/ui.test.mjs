@@ -26,6 +26,8 @@ assert.match(script, /assets\/community-max\.svg/);
 assert.match(script, /assets\/community-vk\.svg/);
 assert.match(script, /assets\/community-sheet\.svg/);
 assert.match(script, /function renderHomeworkJournal\(\)/);
+assert.match(script, /expandedHistorySubjects/);
+assert.match(script, /history-subject-toggle/);
 assert.match(script, /task\.due >= todayKey/);
 assert.match(script, /receivedHistory = Array\.isArray\(data\.history\)/);
 assert.doesNotMatch(script, /service: 'TABLE'/);
@@ -36,6 +38,7 @@ assert.match(css, /\.language-switcher \{[^}]*flex: 0 0 auto;[^}]*margin: auto a
 assert.match(css, /@keyframes menu-enter \{ from \{ transform: translateY\(-100%\);/);
 assert.match(css, /\.history-filter/);
 assert.match(css, /\.history-subject/);
+assert.match(css, /\.history-subject-toggle\[aria-expanded="true"\]/);
 assert.match(css, /\.history-entry/);
 
 for (const asset of ['community-max.svg', 'community-vk.svg', 'community-sheet.svg']) {

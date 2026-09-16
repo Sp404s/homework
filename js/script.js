@@ -28,6 +28,9 @@ const interfaceCopy = {
     journalDescription: 'Все сохранённые задания, сгруппированные по предметам.', backToHomework: '← Актуальные задания',
     historyDate: 'Дата сдачи', clearDate: 'Сбросить', noHistory: 'В журнале пока нет заданий.',
     noHistoryDate: 'На выбранную дату заданий нет.', noActiveHomework: 'Актуальных заданий нет.',
+    historyCount: count => `${count} ${count % 10 === 1 && count % 100 !== 11 ? 'задание' :
+      [2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100) ? 'задания' : 'заданий'}`,
+    historyLatest: date => `Последнее: ${date}`,
   },
   zh: {
     locale: 'zh-CN', documentLanguage: 'zh-CN', pageTitle: '作业', logoAlt: '标志',
@@ -52,6 +55,7 @@ const interfaceCopy = {
     openJournal: '作业记录', journalTitle: '作业记录', journalDescription: '所有已保存的作业，按课程分组。',
     backToHomework: '← 当前作业', historyDate: '截止日期', clearDate: '清除', noHistory: '记录中还没有作业。',
     noHistoryDate: '所选日期没有作业。', noActiveHomework: '目前没有待完成的作业。',
+    historyCount: count => `${count} 项作业`, historyLatest: date => `最近截止：${date}`,
   },
 };
 
@@ -336,6 +340,7 @@ document.querySelector('#content').append(homeworkPanel);
 let homeworkHistory = [];
 let homeworkMode = 'current';
 let historyDateFilter = '';
+const expandedHistorySubjects = new Set();
 
 function daysUntil(due, now = new Date()) {
   const [year, month, day] = due.split('-').map(Number);
@@ -417,13 +422,34 @@ function renderHomeworkJournal() {
     return;
   }
   const groups = element('div', '', 'history-groups');
-  for (const subject of StudentCalendar.subjects) {
+  StudentCalendar.subjects.forEach((subject, subjectIndex) => {
     const entries = filtered.filter(task => task.subject === subject)
       .sort((a, b) => (b.due || '').localeCompare(a.due || ''));
-    if (!entries.length) continue;
-    const group = element('section', '', 'history-subject');
-    group.append(element('h3', translated('subjects', subject)));
+    if (!entries.length) return;
+    const group = element('article', '', 'history-subject');
+    const heading = element('h3');
+    const toggle = element('button', '', 'history-subject-toggle');
+    toggle.type = 'button';
+    const label = element('span', '', 'history-subject-label');
+    label.append(element('span', translated('subjects', subject), 'history-subject-name'),
+      element('span', copy().historyLatest(entries[0].due ? formattedDateKey(entries[0].due) : copy().noDueLesson), 'history-subject-meta'));
+    toggle.append(label, element('span', copy().historyCount(entries.length), 'history-subject-status'));
+    const arrow = element('span', '', 'day-arrow');
+    arrow.setAttribute('aria-hidden', 'true');
+    toggle.append(arrow);
+    heading.append(toggle);
+    group.append(heading);
     const list = element('div', '', 'history-entries');
+    list.id = `history-subject-${subjectIndex}`;
+    list.hidden = !expandedHistorySubjects.has(subject);
+    toggle.setAttribute('aria-controls', list.id);
+    toggle.setAttribute('aria-expanded', String(!list.hidden));
+    toggle.addEventListener('click', () => {
+      const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+      if (expanded) expandedHistorySubjects.add(subject);
+      else expandedHistorySubjects.delete(subject);
+      setLessonListExpanded(list, toggle, expanded);
+    });
     for (const task of entries) {
       const card = element('article', '', 'history-entry');
       const date = element('time', task.due ? formattedDateKey(task.due) : copy().noDueLesson);
@@ -433,7 +459,7 @@ function renderHomeworkJournal() {
       list.append(card);
     }
     group.append(list); groups.append(group);
-  }
+  });
   homeworkPanel.append(groups);
 }
 function renderHomeworkCurrent() {
