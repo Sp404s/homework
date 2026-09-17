@@ -3,9 +3,13 @@
   "short_name": "Домашка",
   "description": "Расписание и домашние задания",
   "lang": "ru",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
   "background_color": "#F5F5F0",
   "theme_color": "#F5F5F0",
   "icons": [

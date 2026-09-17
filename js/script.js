@@ -267,9 +267,10 @@ function renderTeachers() {
   const results = element('div', '', 'teacher-results');
   const renderResults = () => {
     results.replaceChildren();
-    const query = teacherSearch.trim().toLocaleLowerCase(language === 'zh' ? 'zh-CN' : 'ru-RU');
-    const matches = teachers.filter(teacher => !query || [teacher.name, teacher.nameZh, teacher.role, teacher.roleZh,
-      teacher.subjects, teacher.subjectsZh].join(' ').toLocaleLowerCase().includes(query));
+    const locale = language === 'zh' ? 'zh-CN' : 'ru-RU';
+    const matches = teachers.filter(teacher => StudentSearch.includes([
+      teacher.name, teacher.nameZh, teacher.role, teacher.roleZh, teacher.subjects, teacher.subjectsZh,
+    ].join(' '), teacherSearch, locale));
     if (!matches.length) {
       results.append(element('p', copy().noTeachers, 'empty-search'));
       return;

@@ -177,11 +177,28 @@ export function createController({ state, save, telegram, translateTask = async 
       state.history = Array.isArray(state.history) ? [...state.history] : [];
       if (previous) {
         let previousIndex = -1;
+        // Сначала ищем именно редактируемое активное задание. Один и тот же
+        // текст может повторяться в журнале на разные даты.
         for (let index = state.history.length - 1; index >= 0; index -= 1) {
           const item = state.history[index];
-          if (item.subject === previous.subject && item.text === previous.text && (item.next || '') === (previous.next || '')) {
+          if (item.subject === previous.subject && taskDue(item) === previousDue &&
+              item.text === previous.text && (item.next || '') === (previous.next || '')) {
             previousIndex = index;
             break;
+          }
+        }
+        // У старых данных автоматически рассчитанный срок мог уже измениться
+        // из-за переноса пары. Тогда берём совпадающую ещё актуальную запись,
+        // но никогда не удаляем завершённое задание с той же формулировкой.
+        if (previousIndex < 0) {
+          const today = cal.today(now());
+          for (let index = state.history.length - 1; index >= 0; index -= 1) {
+            const item = state.history[index];
+            if (item.subject === previous.subject && taskDue(item) >= today &&
+                item.text === previous.text && (item.next || '') === (previous.next || '')) {
+              previousIndex = index;
+              break;
+            }
           }
         }
         if (previousIndex < 0) {

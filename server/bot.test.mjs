@@ -108,4 +108,44 @@ const expiredBot = createController({ state: expiredState, save: async () => {},
 await expiredBot.handle({ message: { from: { id: 7 }, chat: { id: 7, type: 'private' }, text: '📋 Посмотреть список заданного' } });
 assert.ok(expiredSent.at(-1).text.includes('Задание пока не добавлено'));
 assert.ok(!expiredSent.at(-1).text.includes('Прошедшее задание'));
+
+// При одинаковом тексте на разные даты редактируется запись активного задания,
+// а более старая запись журнала остаётся на месте.
+const repeatedState = {
+  owner: null,
+  tasks: [{ subject: 'Английский язык', text: 'Повторяющееся задание', due: '2026-09-22' }],
+  history: [
+    { subject: 'Английский язык', text: 'Повторяющееся задание', due: '2026-09-22' },
+    { subject: 'Английский язык', text: 'Повторяющееся задание', due: '2026-09-15' },
+  ],
+  weekAnchor: { ...cal.defaultAnchor }, scheduleChanges: [], pending: null, pendingByUser: {},
+};
+const repeatedBot = createController({ state: repeatedState, save: async () => {}, now: () => new Date('2026-09-16T12:00:00Z'),
+  telegram: async () => ({}) });
+const repeatedMsg = text => repeatedBot.handle({ message: { from: { id: 8 }, chat: { id: 8, type: 'private' }, text } });
+const repeatedClick = (action, value = '') => repeatedBot.handle({ callback_query: { id: 'cb-repeat', from: { id: 8 },
+  message: { message_id: 10, chat: { id: 8, type: 'private' } },
+  data: `w:${repeatedState.pendingByUser['8'].nonce}:${action}:${value}` } });
+await repeatedMsg('✏️ Изменить домашнее задание');
+await repeatedClick('subject', '0'); await repeatedClick('keep'); await repeatedClick('attachmentsdone');
+await repeatedClick('date', '2026-09-29'); await repeatedClick('save');
+assert.deepEqual(repeatedState.history.map(task => task.due).sort(), ['2026-09-15', '2026-09-29']);
+
+// После истечения срока новое задание добавляется в журнал, не заменяя старое.
+const newAfterExpiredState = {
+  owner: null,
+  tasks: [{ subject: 'Английский язык', text: 'Старое', due: '2026-09-15' }],
+  history: [{ subject: 'Английский язык', text: 'Старое', due: '2026-09-15' }],
+  weekAnchor: { ...cal.defaultAnchor }, scheduleChanges: [], pending: null, pendingByUser: {},
+};
+const newAfterExpiredBot = createController({ state: newAfterExpiredState, save: async () => {}, now: () => new Date('2026-09-16T12:00:00Z'),
+  telegram: async () => ({}) });
+const expiredMsg = text => newAfterExpiredBot.handle({ message: { from: { id: 9 }, chat: { id: 9, type: 'private' }, text } });
+const expiredClick = (action, value = '') => newAfterExpiredBot.handle({ callback_query: { id: 'cb-expired', from: { id: 9 },
+  message: { message_id: 11, chat: { id: 9, type: 'private' } },
+  data: `w:${newAfterExpiredState.pendingByUser['9'].nonce}:${action}:${value}` } });
+await expiredMsg('✏️ Изменить домашнее задание');
+await expiredClick('subject', '0'); await expiredClick('edittext'); await expiredMsg('Новое');
+await expiredClick('attachmentsdone'); await expiredClick('date', '2026-09-22'); await expiredClick('save');
+assert.deepEqual(newAfterExpiredState.history.map(task => task.due), ['2026-09-15', '2026-09-22']);
 console.log('PASS: buttons, multi-user dialogs, schedule editing, deadlines, translation, attachments and callback sizes');
